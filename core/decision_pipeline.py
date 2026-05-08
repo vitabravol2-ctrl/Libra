@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from core.confirmation_engine import ConfirmationEngine
 from core.entry_gate import EntryGate
 from core.exit_manager import ExitManager
+from core.microstructure_intelligence import MicrostructureIntelligence
 from core.liquidity_events import LiquidityEventDetector
 from core.market_regime import MarketRegimeDetector
 from core.paper_position import PaperPositionEngine
@@ -15,6 +16,7 @@ class PipelineResult:
     market_regime: dict
     liquidity_event: dict
     confirmation: dict
+    microstructure: dict
     entry: dict
     position: dict
     exit: dict
@@ -25,6 +27,7 @@ class DecisionPipeline:
         self.regime = MarketRegimeDetector()
         self.liquidity = LiquidityEventDetector()
         self.confirmation = ConfirmationEngine()
+        self.microstructure = MicrostructureIntelligence()
         self.entry = EntryGate()
         self.paper = PaperPositionEngine()
         self.exit = ExitManager()
@@ -33,6 +36,8 @@ class DecisionPipeline:
         regime = self.regime.analyze(snapshot)
         liq = self.liquidity.analyze(snapshot, regime)
         conf = self.confirmation.analyze(snapshot, regime, liq)
+
+        micro = self.microstructure.analyze(snapshot, regime, liq, conf)
 
         price = float(snapshot.get("price", 0.0))
         entry = self.entry.evaluate(
@@ -46,6 +51,8 @@ class DecisionPipeline:
             price=price,
             threshold=int(snapshot.get("score_threshold", 70)),
             timeout_seconds=int(snapshot.get("timeout_seconds", 30)),
+            microstructure={**micro.__dict__, "absorption_against": bool(snapshot.get("absorption_against_setup", False))},
+            micro_threshold=int(snapshot.get("micro_threshold", 55)),
         )
 
         now_ts = int(snapshot.get("now_ts", 0))
@@ -62,4 +69,4 @@ class DecisionPipeline:
             timeout_seconds=int(snapshot.get("timeout_seconds", 30)),
         )
         exit_decision = self.exit.evaluate(pos)
-        return PipelineResult(regime.__dict__, liq.__dict__, conf.__dict__, entry.__dict__, pos.__dict__, exit_decision.__dict__)
+        return PipelineResult(regime.__dict__, liq.__dict__, conf.__dict__, micro.__dict__, entry.__dict__, pos.__dict__, exit_decision.__dict__)

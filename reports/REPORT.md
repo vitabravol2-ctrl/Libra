@@ -165,3 +165,10 @@ Paper-only status remains enforced (no real order execution).
 - Блокировки подтверждения активируются при CHAOS/UNKNOWN, blocked liquidity, stale data и abnormal spread.
 - Entry по-прежнему принудительно отключён (NOT_IMPLEMENTED).
 - Следующий этап: v0.6.3 ENTRY GATE.
+
+## v0.6.4 MICROSTRUCTURE INTELLIGENCE
+- Добавлен `core/microstructure_intelligence.py` с deterministic анализом: spoof, absorption, exhaustion, continuation, vacuum, decay, pullback quality.
+- Pipeline обновлён: `MARKET REGIME -> LIQUIDITY EVENT -> CONFIRMATION -> MICROSTRUCTURE -> ENTRY GATE -> PAPER POSITION -> EXIT MANAGER`.
+- Entry gate теперь блокирует вход при high spoof/exhaustion/decay, weak continuation, low final quality и absorption against setup.
+- GUI обновлён: добавлен microstructure stage в execution tree и компактные метрики microstructure в ORDERFLOW panel.
+- Добавлены тесты `tests/test_microstructure_intelligence.py`.
