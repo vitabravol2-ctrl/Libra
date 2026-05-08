@@ -37,8 +37,10 @@ def test_sweep_high_reject():
 
 
 def test_confirmation_scoring():
-    r = ConfirmationEngine().evaluate({"orderbook_imbalance": 0.9, "aggressive_trades": 0.8, "velocity": 0.8, "spread": 1.0, "freshness_ms": 500})
-    assert r.score > 70
+    regime = MarketRegimeDetector().analyze({"directional_pressure": 0.8, "higher_micro_highs": True, "volatility": 20})
+    liq = LiquidityEventDetector().analyze({"sweep_low": True, "reclaim": True}, regime)
+    r = ConfirmationEngine().analyze({"bid_volume": 170, "ask_volume": 100, "aggressive_buys": 140, "aggressive_sells": 80, "micro_velocity": 0.9, "velocity_stability": 1.0, "spread": 1.0, "freshness_ms": 500}, regime, liq)
+    assert r.score >= 56
 
 
 def test_entry_blocked_if_score_lt_70():

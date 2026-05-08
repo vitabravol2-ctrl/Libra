@@ -21,7 +21,7 @@ class EntrySettings:
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Tree Console v0.6.1")
+        self.setWindowTitle("BTCUSDT Tree Console v0.6.2")
         self.resize(1100, 760)
         self.pipeline = DecisionPipeline()
         self.settings = EntrySettings()
@@ -68,7 +68,7 @@ class MainWindow(QMainWindow):
         box = QGroupBox("DECISION TREE")
         v = QVBoxLayout(box)
         self.tree_nodes = {}
-        for node in ["MARKET REGIME", "LIQUIDITY EVENT", "SETUP STATUS", "ENTRY", "EXIT"]:
+        for node in ["MARKET REGIME", "LIQUIDITY EVENT", "CONFIRMATION", "ENTRY BLOCKED"]:
             label = QLabel(f"{node}: WAIT")
             self.tree_nodes[node] = label
             v.addWidget(label)
@@ -100,9 +100,12 @@ class MainWindow(QMainWindow):
             "reject": second % 4 == 1,
             "touch_lower_boundary": second % 4 == 2,
             "touch_upper_boundary": False,
-            "orderbook_imbalance": 0.9,
-            "aggressive_trades": 0.8,
-            "velocity": 0.7,
+            "bid_volume": 180.0,
+            "ask_volume": 120.0,
+            "aggressive_buys": 140.0,
+            "aggressive_sells": 80.0,
+            "micro_velocity": 0.75,
+            "velocity_stability": 0.9,
             "spread": 1.0,
             "freshness_ms": 500,
             "ticks_in_profit": second % 4,
@@ -117,18 +120,27 @@ class MainWindow(QMainWindow):
         self.regime_label.setText(f"{regime['regime'].value}")
         self.conf_label.setText(f"CONFIDENCE {regime['confidence']}%")
         self.direction_label.setText(f"SETUP SIDE {liq['setup_side']}")
-        self.state_label.setText(f"ENTRY {result.entry['state']} ({result.entry['reason']})")
+        conf = result.confirmation
+        self.state_label.setText(
+            f"CONFIRMATION {conf['status'].value} {conf['score']}% | "
+            f"IMB {conf['imbalance_score']} AGG {conf['aggressive_score']} "
+            f"VEL {conf['velocity_score']} SPR {conf['spread_score']} FR {conf['freshness_score']}"
+        )
 
         self._set_node("MARKET REGIME", regime["regime"].value)
         self._set_node("LIQUIDITY EVENT", self._liquidity_display(liq))
-        self._set_node("SETUP STATUS", self._setup_display(liq))
-        self._set_node("ENTRY", "BLOCKED / NOT_IMPLEMENTED")
-        self._set_node("EXIT", result.exit["reason"])
+        self._set_node("CONFIRMATION", f"{conf['status'].value} {conf['score']}%")
+        self._set_node("ENTRY BLOCKED", "BLOCKED / NOT_IMPLEMENTED")
 
-        state_key = f"liq={liq['event'].value}|setup={self._setup_display(liq)}"
+        state_key = f"conf={conf['status'].value}|score={conf['score']}"
         if state_key != self._last_state_key:
+            if conf["status"].value == "BLOCKED":
+                self._add_log(f"confirmation blocked: {conf['reason']}")
+            elif conf["status"].value == "READY":
+                self._add_log(f"confirmation READY {conf['score']}%")
+            else:
+                self._add_log(f"confirmation -> {conf['status'].value} {conf['score']}%")
             self._last_state_key = state_key
-            self._add_log(state_key)
 
     def _liquidity_display(self, liq: dict) -> str:
         if liq["status"] == "BLOCKED":
