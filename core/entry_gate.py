@@ -38,6 +38,10 @@ class EntryGate:
         timeout_seconds: int = 30,
         microstructure: dict[str, Any] | None = None,
         micro_threshold: int = 55,
+        execution_quality: dict[str, Any] | None = None,
+        execution_threshold: int = 60,
+        min_fill_probability: int = 50,
+        max_slippage_risk: int = 65,
     ) -> EntryDecision:
         if regime == "CHAOS":
             return self._blocked(side, price, timeout_seconds, "blocked_regime_chaos")
@@ -66,6 +70,20 @@ class EntryGate:
         if int(micro.get("continuation_score", 50)) <= 25:
             return self._blocked(side, price, timeout_seconds, "blocked_micro_continuation")
 
+
+        exe = execution_quality or {"final_execution_score": 100, "fill_probability": 100, "slippage_risk": 0, "spread_capture_score": 100, "maker_score": 100, "queue_score": 100}
+        if int(exe.get("final_execution_score", 0)) < execution_threshold:
+            return self._blocked(side, price, timeout_seconds, "blocked_execution_quality")
+        if int(exe.get("fill_probability", 0)) < min_fill_probability:
+            return self._blocked(side, price, timeout_seconds, "blocked_fill_probability")
+        if int(exe.get("slippage_risk", 100)) > max_slippage_risk:
+            return self._blocked(side, price, timeout_seconds, "blocked_slippage_risk")
+        if int(exe.get("spread_capture_score", 0)) <= 0:
+            return self._blocked(side, price, timeout_seconds, "blocked_spread_harvest")
+        if int(exe.get("maker_score", 0)) < 35:
+            return self._blocked(side, price, timeout_seconds, "blocked_quotes_unstable")
+        if int(exe.get("queue_score", 0)) < 30:
+            return self._blocked(side, price, timeout_seconds, "blocked_queue_terrible")
         tp_ticks = self._tp_ticks(spread=spread, score=confirmation_score, mode=tp_mode, adaptive_tp=adaptive_tp, fee_ticks=fee_ticks, buffer_ticks=buffer_ticks)
         sl_ticks = max(12, int(round(tp_ticks * 0.55)))
 
