@@ -6,6 +6,7 @@ from core.data_quality_engine import DataQualityEngine
 from core.datapack import HealthStatus, MultiTimeframeState
 from core.direction_factors_engine import DirectionFactorsEngine
 from core.microstructure_context_engine import MicrostructureContextEngine
+from core.score_stabilizer import ScoreStabilizer
 from core.timeframe_registry import TIMEFRAME_REGISTRY
 
 
@@ -14,6 +15,7 @@ class ProbabilityEngine:
         self.factors_engine = DirectionFactorsEngine()
         self.micro_engine = MicrostructureContextEngine()
         self.quality_engine = DataQualityEngine()
+        self.score_stabilizer = ScoreStabilizer()
 
     def evaluate(self, datapack: dict[str, Any]) -> dict[str, Any]:
         output = {"symbol": datapack["symbol"], "current_price": datapack["current_price"], "timestamp": datapack["timestamp"], "timeframes": {}, "telemetry": datapack.get("telemetry", {})}
@@ -30,9 +32,9 @@ class ProbabilityEngine:
                 base = self._base_score(pack); bias = int(pack.direction_bias.get("bias_score", 50)); vol = int(pack.volatility.get("volatility_score", 50)); fac = factors.final_factor_score
                 micro_score = micro.confidence if micro.pressure_side == "BUYERS" else 100 - micro.confidence if micro.pressure_side == "SELLERS" else 50
                 score = max(1, min(100, round(base*0.3 + bias*0.2 + vol*0.1 + fac*0.25 + micro_score*0.15)))
-                direction = "UP" if score > 50 else "DOWN" if score < 50 else "NEUTRAL"
+                stabilized = self.score_stabilizer.stabilize(name, score)
                 strongest = max(factors.factors, key=lambda x: abs(x.contribution)).name if factors.factors else "--"
-                res = {"score": score, "final_score": score, "up": score, "down": 100-score, "direction": direction, "confidence": abs(score-50)*2, "quality_score": q.quality_score, "quality_status": q.status, "quality_reasons": q.reasons, "health_status": pack.health_status.value, "context": cfg.context, "strongest_factor": strongest, "factors": [f.__dict__ for f in factors.factors], "factors_score": fac, "microstructure_context": micro.__dict__}
+                res = {"score": stabilized.final_score_stable, "final_score": stabilized.final_score_stable, "final_score_raw": stabilized.final_score_raw, "final_score_stable": stabilized.final_score_stable, "up": stabilized.final_score_stable, "down": 100-stabilized.final_score_stable, "direction": stabilized.direction, "confidence": abs(stabilized.final_score_stable-50)*2, "quality_score": q.quality_score, "quality_status": q.status, "quality_reasons": q.reasons + stabilized.warnings, "health_status": pack.health_status.value, "context": cfg.context, "strongest_factor": strongest, "factors": [f.__dict__ for f in factors.factors], "factors_score": fac, "microstructure_context": micro.__dict__}
             output["timeframes"][name] = res
             if res["direction"] in {"UP", "DOWN"}: directions.append(res["direction"])
 

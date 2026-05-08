@@ -10,6 +10,7 @@ import time
 from core.bias_engine import BiasEngine
 from core.datapack import CandleStats, HealthStatus, MarketDataPack
 from core.volatility_engine import VolatilityEngine
+from core.candle_aggregator import aggregate_1m_to_10m
 from core.timeframe_registry import TIMEFRAME_REGISTRY
 
 BINANCE_BASE_URL = "https://api.binance.com"
@@ -33,9 +34,22 @@ class DataCollector:
                 continue
             try:
                 klines = self._get_klines(cfg.interval, cfg.candle_limit)
+                if label == "10 MIN" and not klines:
+                    one_m = self._get_klines("1m", max(10, cfg.candle_limit))
+                    klines = aggregate_1m_to_10m(one_m)
                 result["timeframes"][label] = self._build_market_datapack(cfg.interval, label, ticker, server_time, klines, start, cfg.stale_threshold_sec, cfg.latency_threshold_ms)
                 result["timeframes"][label].raw["klines"] = klines
             except Exception as exc:  # noqa: BLE001
+                if label == "10 MIN":
+                    try:
+                        one_m = self._get_klines("1m", max(10, cfg.candle_limit))
+                        klines = aggregate_1m_to_10m(one_m)
+                        if klines:
+                            result["timeframes"][label] = self._build_market_datapack("10m/fallback", label, ticker, server_time, klines, start, cfg.stale_threshold_sec, cfg.latency_threshold_ms)
+                            result["timeframes"][label].raw["klines"] = klines
+                            continue
+                    except Exception:
+                        pass
                 result["timeframes"][label] = MarketDataPack(self.symbol, datetime.now(timezone.utc).isoformat(), server_time, "binance-public-api", HealthStatus.ERROR, ticker, 0.0, {}, 0.0, 0.0, {}, CandleStats(0,0,0,0,0,0,0,0,0,0,0), label, (time.perf_counter()-start)*1000, 0.0, errors=[str(exc)])
         return result
 

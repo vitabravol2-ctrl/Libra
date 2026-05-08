@@ -67,3 +67,10 @@ pytest -q
 - В сценариях ошибок предусмотрен явный вывод в консоль.
 - В PowerShell и BAT сценариях есть ожидание ввода (`pause` / `Read-Host`), поэтому окно не закрывается мгновенно.
 - Проект не является торговым ботом: нет live-trading, API-ключей и исполнения ордеров.
+
+
+## v0.3.2 Stability Prep
+- Added Log anti-spam v2 with centralized deduplication for repeated WARN/INFO messages and calmer 1 SEC disabled output.
+- Added score stabilizer with hysteresis (UP >= 53, DOWN <= 47, 48-52 hold previous) and raw/stable score split.
+- Added 10 MIN fallback aggregation from 1m candles to reduce NO_DATA conditions.
+- Refined data quality statuses to include WAITING_FOR_WS/NO_DATA behaviors for safer pre-Game-Theory inputs.
