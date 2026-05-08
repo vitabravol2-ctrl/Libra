@@ -143,3 +143,11 @@ Paper/simulation-only tactical layer added after Game Theory decision.
 - введён `confirmation_score` 0–100 со статусами `WEAK/BUILDING/STRONG/READY/BLOCKED`
 - entry всё ещё отключён (`BLOCKED / NOT_IMPLEMENTED`)
 - следующая версия: `v0.6.3 ENTRY GATE`
+
+
+## v0.6.3 ENTRY GATE + PAPER POSITION
+- first deterministic entry gate
+- realistic paper execution state machine
+- adaptive TP model (fee+spread+buffer aware)
+- structure-aware SL and timeout/emergency exits
+- GUI upgraded toward professional microstructure terminal
