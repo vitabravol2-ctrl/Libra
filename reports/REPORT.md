@@ -138,3 +138,16 @@ Paper-only status remains enforced (no real order execution).
 - Пока нет входов (entry disabled).
 - Система определяет только режим и ожидаемое следующее событие.
 - Следующая версия: v0.5.1 Liquidity Event Layer.
+
+## v0.6.0 TREE ARCHITECTURE RESET
+- Удалены перегруженные панели и лишняя телеметрия из GUI.
+- Введён строгий pipeline: `market_regime -> liquidity_event -> confirmation -> entry_gate -> exit_manager`.
+- Реализованы новые core-модули:
+  - `core/market_regime.py`
+  - `core/liquidity_events.py`
+  - `core/confirmation_engine.py`
+  - `core/entry_gate.py`
+  - `core/exit_manager.py`
+  - `core/decision_pipeline.py`
+- Entry разрешается только при подтверждении score>70, fresh data и normal spread.
+- Exit ограничен TP(+1/+2/+3), structure break SL, timeout, emergency.
