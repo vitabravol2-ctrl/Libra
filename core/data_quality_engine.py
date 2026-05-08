@@ -15,9 +15,14 @@ class DataQualityReport:
 class DataQualityEngine:
     def evaluate(self, pack: Any, klines: list[list[Any]], expected_candles: int, stale_threshold_sec: int, enabled: bool) -> DataQualityReport:
         if not enabled:
+            if pack.timeframe == "1 SEC":
+                return DataQualityReport(100, "WAITING_FOR_WS", ["timeframe_disabled", "waiting_for_ws"])
             return DataQualityReport(0, "DISABLED", ["timeframe_disabled"])
 
         reasons: list[str] = []
+        if not klines:
+            reasons.append("waiting_for_ws")
+            return DataQualityReport(60, "WAITING_FOR_WS", reasons)
         score = 100
         if pack.price <= 0:
             score -= 50; reasons.append("price_zero_or_negative")

@@ -8,6 +8,7 @@ from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import QGridLayout, QLabel, QMainWindow, QProgressBar, QTextEdit, QVBoxLayout, QWidget, QGroupBox
 
 from core.data_collector import DataCollector
+from core.log_deduplicator import LogDeduplicator
 from core.probability_engine import ProbabilityEngine
 
 
@@ -42,6 +43,7 @@ class MainWindow(QMainWindow):
         self.last_context: dict[str, str] = {}
         self.last_strongest: dict[str, str] = {}
         self.start_time = datetime.utcnow()
+        self.log_dedup = LogDeduplicator()
         self.total_refreshes = 0
         self.failed_refreshes = 0
         self.avg_latency_ms = 0.0
@@ -89,7 +91,7 @@ class MainWindow(QMainWindow):
         for tf, data in result["timeframes"].items():
             score = int(data["score"]); self.bars[tf].setValue(score)
             self.bars[tf].setStyleSheet(f"QProgressBar::chunk {{ background-color: {'#1f8b4c' if score >= 51 else '#a32828'}; }}")
-            self.labels[tf].setText(f"UP: {data.get('up','--')}% | DOWN: {data.get('down','--')}% | DIR: {data.get('direction','--')} | CONF: {data.get('confidence','--')}% | Q: {data.get('quality_score','--')} | CTX: {data.get('context','--')}")
+            self.labels[tf].setText(f"UP: {data.get('up','--')}% | DOWN: {data.get('down','--')}% | DIR: {data.get('direction','--')} | CONF: {data.get('confidence','--')}% | Q: {data.get('quality_score','--')} | STABLE: {data.get('final_score_stable', data.get('score','--'))} | raw: {data.get('final_score_raw', data.get('score','--'))} | CTX: {data.get('context','--')}")
             hs = data["health_status"]
             latency_ms = data.get("latency_ms")
             if latency_ms is not None:
@@ -110,7 +112,7 @@ class MainWindow(QMainWindow):
                 self.log_message(f"INFO score changed significantly {tf}: {self.last_scores.get(tf, score)} -> {score}")
             self.last_scores[tf] = score
             ctx = micro.get("context_state", "--")
-            if self.last_context.get(tf) != ctx:
+            if self.last_context.get(tf) != ctx and self.log_dedup.should_emit_context_change(tf, ctx):
                 self.log_message(f"INFO context change {tf}: {self.last_context.get(tf, '--')} -> {ctx}")
             self.last_context[tf] = ctx
             strongest = strongest_up['name'] if abs(strongest_up.get('contribution',0)) >= abs(strongest_down.get('contribution',0)) else strongest_down['name']
@@ -118,7 +120,14 @@ class MainWindow(QMainWindow):
                 self.log_message(f"INFO strongest factor change {tf}: {self.last_strongest.get(tf, '--')} -> {strongest}")
             self.last_strongest[tf] = strongest
             for w in micro.get('warnings', []):
-                self.log_message(f"WARN {tf} {w}")
+                if w == "timeframe_disabled":
+                    if self.log_dedup.should_emit(f"WARN:{tf}:{w}", 300):
+                        self.log_message(f"WARN {tf} {w}")
+                elif "wick_rejection" in w:
+                    if self.log_dedup.should_emit_wick_rejection(tf, w):
+                        self.log_message(f"WARN {tf} {w}")
+                elif self.log_dedup.should_emit(f"WARN:{tf}:{w}", 60):
+                    self.log_message(f"WARN {tf} {w}")
 
         avg_refresh_latency = (latency_acc / latency_count) if latency_count else 0.0
         self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + avg_refresh_latency) / self.total_refreshes
@@ -126,7 +135,8 @@ class MainWindow(QMainWindow):
         self.telemetry.setText(
             f"SYSTEM TELEMETRY | API: OK | FREQ: 5s | REFRESH: {self.total_refreshes} | FAIL: {self.failed_refreshes} | AVG LAT: {self.avg_latency_ms:.2f}ms | UPTIME: {str(uptime).split('.')[0]} | SYMBOL: {result['symbol']} | SOURCE: {result.get('source', '--')}"
         )
-        self.log_message("INFO Updated successfully")
+        if self.log_dedup.should_emit("INFO:updated_success", 30):
+            self.log_message("INFO Updated successfully")
 
     def log_error(self, message: str) -> None:
         self.failed_refreshes += 1

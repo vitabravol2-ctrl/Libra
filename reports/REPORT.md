@@ -64,3 +64,10 @@ Current factors are candle-derived only; order book + websocket microstructure i
 - 1SEC remains experimental and does not break runtime when exchange 1s candles are unavailable.
 - Added anti-chaos gate in probability evaluation (`NO_DATA`, score=50, confidence=0 on bad inputs).
 - Added MultiTimeframeState aggregation for next Game Theory integration phase.
+
+
+## v0.3.2 Stability Prep
+- Added Log anti-spam v2 with centralized deduplication for repeated WARN/INFO messages and calmer 1 SEC disabled output.
+- Added score stabilizer with hysteresis (UP >= 53, DOWN <= 47, 48-52 hold previous) and raw/stable score split.
+- Added 10 MIN fallback aggregation from 1m candles to reduce NO_DATA conditions.
+- Refined data quality statuses to include WAITING_FOR_WS/NO_DATA behaviors for safer pre-Game-Theory inputs.
