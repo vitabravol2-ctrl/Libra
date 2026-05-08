@@ -10,5 +10,5 @@ except ImportError as exc:
 
 def test_gui_window_builds(qapp):
     w = MainWindow()
-    assert "v0.6.1" in w.windowTitle()
+    assert "BTCUSDT Tree Console" in w.windowTitle()
     assert "MARKET REGIME" in w.tree_nodes
