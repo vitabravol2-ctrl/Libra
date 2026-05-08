@@ -157,3 +157,11 @@ Paper-only status remains enforced (no real order execution).
 - система теперь после Market Regime ищет liquidity setup
 - entry всё ещё отключён
 - цель следующей версии v0.6.2: Confirmation Layer
+
+## v0.6.2 CONFIRMATION LAYER
+- Добавлен третий слой дерева между liquidity и entry.
+- Введён `ConfirmationEngine` с проверками orderbook imbalance, aggressive trades, micro velocity, spread quality и data freshness.
+- Реализован `confirmation_score` 0..100 и статусы: WEAK, BUILDING, STRONG, READY, BLOCKED.
+- Блокировки подтверждения активируются при CHAOS/UNKNOWN, blocked liquidity, stale data и abnormal spread.
+- Entry по-прежнему принудительно отключён (NOT_IMPLEMENTED).
+- Следующий этап: v0.6.3 ENTRY GATE.

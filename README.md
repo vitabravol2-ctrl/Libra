@@ -136,3 +136,10 @@ Paper/simulation-only tactical layer added after Game Theory decision.
 - система теперь после Market Regime ищет liquidity setup
 - entry всё ещё отключён
 - цель следующей версии v0.6.2: Confirmation Layer
+
+## v0.6.2 CONFIRMATION LAYER
+- добавлен третий слой дерева: `MARKET REGIME -> LIQUIDITY EVENT -> CONFIRMATION -> ENTRY BLOCKED`
+- система теперь подтверждает liquidity setup через 5 факторов (imbalance/aggressive/velocity/spread/freshness)
+- введён `confirmation_score` 0–100 со статусами `WEAK/BUILDING/STRONG/READY/BLOCKED`
+- entry всё ещё отключён (`BLOCKED / NOT_IMPLEMENTED`)
+- следующая версия: `v0.6.3 ENTRY GATE`
