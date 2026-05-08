@@ -98,6 +98,7 @@ Current factors are candle-derived only; order book + websocket microstructure i
 - Added explanation traces for regime/decision transitions and block reasons for anti-chaos behavior.
 - Integration point in GUI now consumes `game_theory` payload for central decision telemetry.
 
+ codex/create-tactical-entry-engine
 ## Tactical Entry Engine v0.5.0
 
 Integrated TacticalEntryEngine for paper intent generation:
@@ -108,3 +109,25 @@ Integrated TacticalEntryEngine for paper intent generation:
 - Cockpit now shows tactical entry status and paper trade tape placeholder.
 
 Paper-only status remains enforced (no real order execution).
+## v0.4.2 Live Game Theory Cockpit
+- Центральный блок Game Theory обновлен до live-cockpit формата:
+  - TG score + decision
+  - regime/dominant side/confidence/execution readiness
+  - risk/scenario/agreement/conflict
+- Добавлен отдельный Market State panel:
+  - Market Mode
+  - Strongest / Blocked reason
+  - Trap Risk
+  - Pullback State
+  - Entry Window placeholder (`OPEN` only when execution_ready=true, decision in LONG/SHORT, confidence>=60)
+- Добавлен Timeframe Agreement mini-radar:
+  - agreement score
+  - conflict score
+  - active/disabled timeframes
+- Добавлен GT Reason Tape (короткая лента последних reasons без GUI-spam).
+- Compact timeframe cards расширены краткими quality/context labels.
+- Архитектурный контракт pipeline сохранен:
+  - DataCollector unchanged
+  - ProbabilityEngine contract unchanged
+  - GameTheoryDecisionEngine contract unchanged
+- По-прежнему no real trading: без Binance keys, без futures/margin исполнения, только анализ и подготовка к paper trading.
