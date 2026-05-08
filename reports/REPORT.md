@@ -71,3 +71,13 @@ Current factors are candle-derived only; order book + websocket microstructure i
 - Added score stabilizer with hysteresis (UP >= 53, DOWN <= 47, 48-52 hold previous) and raw/stable score split.
 - Added 10 MIN fallback aggregation from 1m candles to reduce NO_DATA conditions.
 - Refined data quality statuses to include WAITING_FOR_WS/NO_DATA behaviors for safer pre-Game-Theory inputs.
+
+## v0.3.3 Cockpit Architecture Update
+- Replaced overloaded control-center style UI with cockpit-style composition based on `QGroupBox` + `QGridLayout`.
+- TG/Game Theory is now represented as the main central gauge (`1..100`) and currently uses placeholder aggregation from MultiTimeframe score outputs.
+- Timeframes are rendered as compact assistant indicators (short text + colored bullet semantics).
+- Added placeholders for future strategy execution flow:
+  - Scalping/Grid settings model (local state only).
+  - Trade control state panel with paper-mode arming/disarming.
+- Logging panel is compact (20 latest events), auto-scrolling, and warning-group aware.
+- Runtime remains analysis-only: **no live order placement** in this release.

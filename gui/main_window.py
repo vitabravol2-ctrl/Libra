@@ -2,14 +2,43 @@
 
 from __future__ import annotations
 
+from collections import deque
+from dataclasses import dataclass
 from datetime import datetime
 
 from PySide6.QtCore import QThread, QTimer, Signal
-from PySide6.QtWidgets import QGridLayout, QLabel, QMainWindow, QProgressBar, QTextEdit, QVBoxLayout, QWidget, QGroupBox
+from PySide6.QtWidgets import (
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QPushButton,
+    QProgressBar,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core.data_collector import DataCollector
 from core.log_deduplicator import LogDeduplicator
 from core.probability_engine import ProbabilityEngine
+
+TIMEFRAME_ORDER = ["WEEK", "DAY", "HOUR", "10 MIN", "1 MIN", "1 SEC"]
+
+
+@dataclass
+class TradingSettings:
+    mode: str = "PAPER ONLY"
+    long_threshold: int = 55
+    short_threshold: int = 45
+    tp_ticks: int = 80
+    sl_ticks: int = 40
+    grid_step: int = 15
+    max_position: float = 0.02
+    leverage_placeholder: int = 1
+    risk_per_cycle: float = 0.5
 
 
 class Worker(QThread):
@@ -28,52 +57,194 @@ class Worker(QThread):
             self.error.emit(str(exc))
 
 
+def compact_timeframe_text(tf: str, data: dict) -> str:
+    hs = data.get("health_status", "--")
+    score = data.get("score")
+    if tf == "1 SEC" and hs in {"DISABLED", "WAITING_FOR_WS"}:
+        return f"{tf:<6} ● GREY WAITING_WS"
+    if hs in {"ERROR", "STALE", "DELAYED"}:
+        return f"{tf:<6} ● GREY {hs}"
+    if score is None:
+        return f"{tf:<6} ● GREY NO_DATA"
+    score = int(score)
+    side = "GREEN" if score >= 51 else "RED" if score <= 49 else "GREY"
+    return f"{tf:<6} ● {side} {score}%"
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.3.1")
-        self.resize(980, 700)
-        self.collector = DataCollector(); self.engine = ProbabilityEngine(); self.worker: Worker | None = None
-        self.bars: dict[str, QProgressBar] = {}
-        self.labels: dict[str, QLabel] = {}
-        self.health_labels: dict[str, QLabel] = {}
-        self.factor_labels: dict[str, QLabel] = {}
+        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.3.3")
+        self.resize(1100, 760)
+        self.collector = DataCollector()
+        self.engine = ProbabilityEngine()
+        self.worker: Worker | None = None
+        self.log_lines: deque[str] = deque(maxlen=20)
         self.last_log_message = ""
         self.last_scores: dict[str, int] = {}
-        self.last_context: dict[str, str] = {}
-        self.last_strongest: dict[str, str] = {}
         self.start_time = datetime.utcnow()
         self.log_dedup = LogDeduplicator()
         self.total_refreshes = 0
         self.failed_refreshes = 0
         self.avg_latency_ms = 0.0
+        self.paper_mode_ready = False
+        self.settings = TradingSettings()
 
-        central = QWidget(); layout = QVBoxLayout(central)
-        self.price_label = QLabel("Current Price: --"); layout.addWidget(self.price_label)
+        central = QWidget()
+        root = QVBoxLayout(central)
 
-        grid = QGridLayout(); layout.addLayout(grid)
-        for row, tf in enumerate(["WEEK", "DAY", "HOUR", "10 MIN", "1 MIN", "1 SEC"]):
-            grid.addWidget(QLabel(tf), row, 0)
-            bar = QProgressBar(); bar.setRange(1, 100); bar.setValue(50); bar.setFormat("%v"); self.bars[tf] = bar; grid.addWidget(bar, row, 1)
-            label = QLabel("UP: -- | DOWN: -- | DIR: -- | CONF: -- | Q: -- | CTX: --"); self.labels[tf] = label; grid.addWidget(label, row, 2)
-            health = QLabel("HEALTH: -- | LAT: -- | STALE: --"); self.health_labels[tf] = health; grid.addWidget(health, row, 3)
+        top = self._build_top_panel()
+        root.addWidget(top)
 
+        middle = QHBoxLayout()
+        middle.addWidget(self._build_tg_gauge(), 2)
+        middle.addWidget(self._build_timeframes_panel(), 1)
+        root.addLayout(middle)
 
-        factor_box = QGroupBox("DIRECTION FACTORS")
-        factor_layout = QGridLayout(factor_box)
-        for row, tf in enumerate(["WEEK", "DAY", "HOUR", "10 MIN", "1 MIN", "1 SEC"]):
-            factor_layout.addWidget(QLabel(tf), row, 0)
-            factor_label = QLabel("UP: -- | DOWN: -- | SCORE: -- | CTX: -- | PRESSURE: --")
-            self.factor_labels[tf] = factor_label
-            factor_layout.addWidget(factor_label, row, 1)
-        layout.addWidget(factor_box)
+        bottom = QHBoxLayout()
+        bottom.addWidget(self._build_settings_panel(), 2)
+        bottom.addWidget(self._build_trade_control_panel(), 1)
+        root.addLayout(bottom)
 
-        self.telemetry = QLabel("SYSTEM TELEMETRY | API: -- | FREQ: -- | REFRESH: 0 | FAIL: 0 | AVG LAT: -- | UPTIME: -- | SYMBOL: -- | SOURCE: --")
-        layout.addWidget(self.telemetry)
-        self.log = QTextEdit(); self.log.setReadOnly(True); layout.addWidget(self.log)
+        log_box = QGroupBox("COMPACT LOGS")
+        log_layout = QVBoxLayout(log_box)
+        self.log = QTextEdit()
+        self.log.setReadOnly(True)
+        log_layout.addWidget(self.log)
+        root.addWidget(log_box)
+
         self.setCentralWidget(central)
+        self._refresh_settings_fields()
 
-        self.timer = QTimer(self); self.timer.setInterval(5000); self.timer.timeout.connect(self.fetch_update); self.timer.start(); self.fetch_update()
+        self.timer = QTimer(self)
+        self.timer.setInterval(5000)
+        self.timer.timeout.connect(self.fetch_update)
+        self.timer.start()
+        self.fetch_update()
+
+    def _build_top_panel(self) -> QGroupBox:
+        box = QGroupBox("TOP PANEL")
+        grid = QGridLayout(box)
+        self.price_label = QLabel("Current Price: --")
+        self.api_status = QLabel("API status: --")
+        self.update_status = QLabel("Update status: --")
+        self.system_health = QLabel("System health: --")
+        self.start_btn = QPushButton("Start")
+        self.pause_btn = QPushButton("Pause")
+        self.refresh_btn = QPushButton("Refresh")
+        self.start_btn.clicked.connect(self.timer.start)
+        self.pause_btn.clicked.connect(self.timer.stop)
+        self.refresh_btn.clicked.connect(self.fetch_update)
+        for i, w in enumerate([self.price_label, self.api_status, self.update_status, self.system_health]):
+            grid.addWidget(w, 0, i)
+        for i, w in enumerate([self.start_btn, self.pause_btn, self.refresh_btn]):
+            grid.addWidget(w, 1, i)
+        return box
+
+    def _build_tg_gauge(self) -> QGroupBox:
+        box = QGroupBox("CENTER PANEL — MAIN TG GAUGE")
+        layout = QVBoxLayout(box)
+        self.tg_state_label = QLabel("TG ENGINE: PREPARED / NOT ACTIVE")
+        self.tg_gauge = QProgressBar()
+        self.tg_gauge.setRange(1, 100)
+        self.tg_gauge.setValue(50)
+        self.tg_gauge.setFormat("TG SCORE %v")
+        self.tg_decision_label = QLabel("TG Decision: WAIT")
+        layout.addWidget(self.tg_state_label)
+        layout.addWidget(self.tg_gauge)
+        layout.addWidget(self.tg_decision_label)
+        return box
+
+    def _build_timeframes_panel(self) -> QGroupBox:
+        box = QGroupBox("COMPACT TIMEFRAMES")
+        layout = QVBoxLayout(box)
+        self.tf_compact_labels = {}
+        for tf in TIMEFRAME_ORDER:
+            lbl = QLabel(f"{tf:<6} ● GREY NO_DATA")
+            self.tf_compact_labels[tf] = lbl
+            layout.addWidget(lbl)
+        return box
+
+    def _build_settings_panel(self) -> QGroupBox:
+        box = QGroupBox("SCALPING / GRID SETTINGS")
+        grid = QGridLayout(box)
+        self.settings_inputs = {}
+        fields = [
+            ("mode", "Mode"), ("long_threshold", "Long threshold"), ("short_threshold", "Short threshold"),
+            ("tp_ticks", "TP ticks"), ("sl_ticks", "SL ticks"), ("grid_step", "Grid step"),
+            ("max_position", "Max position"), ("leverage_placeholder", "Leverage placeholder"), ("risk_per_cycle", "Risk per cycle"),
+        ]
+        for row, (key, text) in enumerate(fields):
+            grid.addWidget(QLabel(text), row, 0)
+            inp = QLineEdit()
+            self.settings_inputs[key] = inp
+            grid.addWidget(inp, row, 1)
+        apply_btn = QPushButton("Apply Settings")
+        reset_btn = QPushButton("Reset")
+        save_btn = QPushButton("Save Profile")
+        apply_btn.clicked.connect(self.apply_settings)
+        reset_btn.clicked.connect(self.reset_settings)
+        save_btn.clicked.connect(self.save_profile)
+        grid.addWidget(apply_btn, len(fields), 0)
+        grid.addWidget(reset_btn, len(fields), 1)
+        grid.addWidget(save_btn, len(fields) + 1, 0)
+        return box
+
+    def _build_trade_control_panel(self) -> QGroupBox:
+        box = QGroupBox("TRADE CONTROL")
+        layout = QVBoxLayout(box)
+        self.trade_decision = QLabel("TG Decision: WAIT")
+        self.position_state = QLabel("Position State: FLAT")
+        self.paper_mode = QLabel("Paper Mode: OFF")
+        self.last_signal = QLabel("Last Signal: --")
+        self.last_reason = QLabel("Last Reason: --")
+        for w in [self.trade_decision, self.position_state, self.paper_mode, self.last_signal, self.last_reason]:
+            layout.addWidget(w)
+        arm = QPushButton("Arm Paper Mode")
+        disarm = QPushButton("Disarm")
+        estop = QPushButton("Emergency Stop")
+        arm.clicked.connect(lambda: self._set_paper_mode(True))
+        disarm.clicked.connect(lambda: self._set_paper_mode(False))
+        estop.clicked.connect(self._emergency_stop)
+        layout.addWidget(arm)
+        layout.addWidget(disarm)
+        layout.addWidget(estop)
+        return box
+
+    def _set_paper_mode(self, enabled: bool) -> None:
+        self.paper_mode_ready = enabled
+        self.paper_mode.setText(f"Paper Mode: {'READY' if enabled else 'OFF'}")
+
+    def _emergency_stop(self) -> None:
+        self._set_paper_mode(False)
+        self.trade_decision.setText("TG Decision: WAIT")
+        self.last_reason.setText("Last Reason: Emergency stop activated")
+
+    def _refresh_settings_fields(self) -> None:
+        for key, widget in self.settings_inputs.items():
+            widget.setText(str(getattr(self.settings, key)))
+
+    def apply_settings(self) -> None:
+        self.settings = TradingSettings(
+            mode=self.settings_inputs["mode"].text() or "PAPER ONLY",
+            long_threshold=int(self.settings_inputs["long_threshold"].text() or 55),
+            short_threshold=int(self.settings_inputs["short_threshold"].text() or 45),
+            tp_ticks=int(self.settings_inputs["tp_ticks"].text() or 80),
+            sl_ticks=int(self.settings_inputs["sl_ticks"].text() or 40),
+            grid_step=int(self.settings_inputs["grid_step"].text() or 15),
+            max_position=float(self.settings_inputs["max_position"].text() or 0.02),
+            leverage_placeholder=int(self.settings_inputs["leverage_placeholder"].text() or 1),
+            risk_per_cycle=float(self.settings_inputs["risk_per_cycle"].text() or 0.5),
+        )
+        self.log_message("INFO Settings applied locally (paper placeholder)")
+
+    def reset_settings(self) -> None:
+        self.settings = TradingSettings()
+        self._refresh_settings_fields()
+        self.log_message("INFO Settings reset to defaults")
+
+    def save_profile(self) -> None:
+        self.log_message("INFO Profile saved in-memory (placeholder)")
 
     def fetch_update(self) -> None:
         if self.worker is not None and self.worker.isRunning():
@@ -86,60 +257,45 @@ class MainWindow(QMainWindow):
     def apply_result(self, result: dict) -> None:
         self.total_refreshes += 1
         self.price_label.setText(f"Current Price: {result['current_price']:.2f}")
+        self.api_status.setText("API status: OK")
+        self.update_status.setText(f"Update status: refresh #{self.total_refreshes}")
         latency_acc = 0.0
         latency_count = 0
-        for tf, data in result["timeframes"].items():
-            score = int(data["score"]); self.bars[tf].setValue(score)
-            self.bars[tf].setStyleSheet(f"QProgressBar::chunk {{ background-color: {'#1f8b4c' if score >= 51 else '#a32828'}; }}")
-            self.labels[tf].setText(f"UP: {data.get('up','--')}% | DOWN: {data.get('down','--')}% | DIR: {data.get('direction','--')} | CONF: {data.get('confidence','--')}% | Q: {data.get('quality_score','--')} | STABLE: {data.get('final_score_stable', data.get('score','--'))} | raw: {data.get('final_score_raw', data.get('score','--'))} | CTX: {data.get('context','--')}")
-            hs = data["health_status"]
-            latency_ms = data.get("latency_ms")
-            if latency_ms is not None:
-                latency_acc += float(latency_ms)
+        tg_scores = []
+
+        for tf in TIMEFRAME_ORDER:
+            data = result["timeframes"].get(tf, {})
+            self.tf_compact_labels[tf].setText(compact_timeframe_text(tf, data))
+            score = data.get("score")
+            if isinstance(score, (int, float)):
+                tg_scores.append(int(score))
+            lat = data.get("latency_ms")
+            if lat is not None:
+                latency_acc += float(lat)
                 latency_count += 1
-            color = {"HEALTHY": "#1f8b4c", "DELAYED": "#e0a100", "STALE": "#d17b00", "ERROR": "#a32828"}.get(hs, "#808080")
-            self.health_labels[tf].setStyleSheet(f"color: {color};")
-            self.health_labels[tf].setText('1 SEC: WAITING FOR WS / EXPERIMENTAL' if hs=='DISABLED' and tf=='1 SEC' else f"HEALTH: {hs} | LAT: {data.get('latency_ms','--')}ms | STALE: {data.get('stale_seconds','--')}s")
-            factors = data.get("factors", [])
-            up_factors = [f for f in factors if f["direction"] == "UP"]
-            down_factors = [f for f in factors if f["direction"] == "DOWN"]
-            strongest_up = max(up_factors, key=lambda x: x["contribution"], default={"name": "--", "contribution": 0})
-            strongest_down = min(down_factors, key=lambda x: x["contribution"], default={"name": "--", "contribution": 0})
-            micro = data.get("microstructure_context", {})
-            self.factor_labels[tf].setText(f"UP: {strongest_up['name']} | DOWN: {strongest_down['name']} | SCORE: {data.get('factors_score','--')} | CTX: {micro.get('context_state','--')} | PRESSURE: {micro.get('pressure_side','--')}")
-            sig = abs(self.last_scores.get(tf, score) - score) >= 7
-            if sig:
-                self.log_message(f"INFO score changed significantly {tf}: {self.last_scores.get(tf, score)} -> {score}")
-            self.last_scores[tf] = score
-            ctx = micro.get("context_state", "--")
-            if self.last_context.get(tf) != ctx and self.log_dedup.should_emit_context_change(tf, ctx):
-                self.log_message(f"INFO context change {tf}: {self.last_context.get(tf, '--')} -> {ctx}")
-            self.last_context[tf] = ctx
-            strongest = strongest_up['name'] if abs(strongest_up.get('contribution',0)) >= abs(strongest_down.get('contribution',0)) else strongest_down['name']
-            if self.last_strongest.get(tf) != strongest:
-                self.log_message(f"INFO strongest factor change {tf}: {self.last_strongest.get(tf, '--')} -> {strongest}")
-            self.last_strongest[tf] = strongest
-            for w in micro.get('warnings', []):
-                if w == "timeframe_disabled":
-                    if self.log_dedup.should_emit(f"WARN:{tf}:{w}", 300):
-                        self.log_message(f"WARN {tf} {w}")
-                elif "wick_rejection" in w:
-                    if self.log_dedup.should_emit_wick_rejection(tf, w):
-                        self.log_message(f"WARN {tf} {w}")
-                elif self.log_dedup.should_emit(f"WARN:{tf}:{w}", 60):
-                    self.log_message(f"WARN {tf} {w}")
+
+        if tg_scores:
+            tg_score = max(1, min(100, int(sum(tg_scores) / len(tg_scores))))
+            self.tg_state_label.setText("TG ENGINE: PREPARED")
+            self.tg_gauge.setValue(tg_score)
+            color = "#1f8b4c" if tg_score >= 51 else "#a32828" if tg_score <= 49 else "#7c7c7c"
+            self.tg_gauge.setStyleSheet(f"QProgressBar::chunk {{ background-color: {color}; }}")
+            decision = "LONG" if tg_score >= self.settings.long_threshold else "SHORT" if tg_score <= self.settings.short_threshold else "WAIT"
+            self.tg_decision_label.setText(f"TG Decision: {decision}")
+            self.trade_decision.setText(f"TG Decision: {decision}")
+            self.last_signal.setText(f"Last Signal: TG {tg_score}")
+            self.last_reason.setText("Last Reason: Global score placeholder from MTF state")
+        else:
+            self.tg_state_label.setText("TG ENGINE: PREPARED / NOT ACTIVE")
 
         avg_refresh_latency = (latency_acc / latency_count) if latency_count else 0.0
         self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + avg_refresh_latency) / self.total_refreshes
         uptime = datetime.utcnow() - self.start_time
-        self.telemetry.setText(
-            f"SYSTEM TELEMETRY | API: OK | FREQ: 5s | REFRESH: {self.total_refreshes} | FAIL: {self.failed_refreshes} | AVG LAT: {self.avg_latency_ms:.2f}ms | UPTIME: {str(uptime).split('.')[0]} | SYMBOL: {result['symbol']} | SOURCE: {result.get('source', '--')}"
-        )
-        if self.log_dedup.should_emit("INFO:updated_success", 30):
-            self.log_message("INFO Updated successfully")
+        self.system_health.setText(f"System health: FAIL {self.failed_refreshes} | LAT {self.avg_latency_ms:.1f}ms | UPTIME {str(uptime).split('.')[0]}")
 
     def log_error(self, message: str) -> None:
         self.failed_refreshes += 1
+        self.update_status.setText("Update status: ERROR")
         self.log_message(f"ERROR API/processing error: {message}")
 
     def log_message(self, message: str) -> None:
@@ -147,4 +303,11 @@ class MainWindow(QMainWindow):
             return
         self.last_log_message = message
         now = datetime.utcnow().isoformat(timespec="seconds")
-        self.log.append(f"[{now}] {message}")
+        if message.startswith("WARN"):
+            key = "WARN_GROUP"
+            if self.log_dedup.should_emit(key, 15):
+                self.log_lines.append(f"[{now}] WARN grouped warnings active")
+        else:
+            self.log_lines.append(f"[{now}] {message}")
+        self.log.setPlainText("\n".join(self.log_lines))
+        self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
