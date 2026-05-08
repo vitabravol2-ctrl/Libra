@@ -30,7 +30,7 @@ class Worker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.3.0")
+        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.3.1")
         self.resize(980, 700)
         self.collector = DataCollector(); self.engine = ProbabilityEngine(); self.worker: Worker | None = None
         self.bars: dict[str, QProgressBar] = {}
@@ -50,16 +50,16 @@ class MainWindow(QMainWindow):
         self.price_label = QLabel("Current Price: --"); layout.addWidget(self.price_label)
 
         grid = QGridLayout(); layout.addLayout(grid)
-        for row, tf in enumerate(["DAY", "HOUR", "10 MIN", "1 MIN"]):
+        for row, tf in enumerate(["WEEK", "DAY", "HOUR", "10 MIN", "1 MIN", "1 SEC"]):
             grid.addWidget(QLabel(tf), row, 0)
             bar = QProgressBar(); bar.setRange(1, 100); bar.setValue(50); bar.setFormat("%v"); self.bars[tf] = bar; grid.addWidget(bar, row, 1)
-            label = QLabel("UP: -- | DOWN: -- | DIR: -- | CONF: -- | TS: --"); self.labels[tf] = label; grid.addWidget(label, row, 2)
+            label = QLabel("UP: -- | DOWN: -- | DIR: -- | CONF: -- | Q: -- | CTX: --"); self.labels[tf] = label; grid.addWidget(label, row, 2)
             health = QLabel("HEALTH: -- | LAT: -- | STALE: --"); self.health_labels[tf] = health; grid.addWidget(health, row, 3)
 
 
         factor_box = QGroupBox("DIRECTION FACTORS")
         factor_layout = QGridLayout(factor_box)
-        for row, tf in enumerate(["DAY", "HOUR", "10 MIN", "1 MIN"]):
+        for row, tf in enumerate(["WEEK", "DAY", "HOUR", "10 MIN", "1 MIN", "1 SEC"]):
             factor_layout.addWidget(QLabel(tf), row, 0)
             factor_label = QLabel("UP: -- | DOWN: -- | SCORE: -- | CTX: -- | PRESSURE: --")
             self.factor_labels[tf] = factor_label
@@ -88,11 +88,11 @@ class MainWindow(QMainWindow):
         for tf, data in result["timeframes"].items():
             score = int(data["score"]); self.bars[tf].setValue(score)
             self.bars[tf].setStyleSheet(f"QProgressBar::chunk {{ background-color: {'#1f8b4c' if score >= 51 else '#a32828'}; }}")
-            self.labels[tf].setText(f"UP: {data['up']}% | DOWN: {data['down']}% | DIR: {data['direction']} | CONF: {data['confidence']}% | TS: {data['candle_timestamp']}")
+            self.labels[tf].setText(f"UP: {data.get('up','--')}% | DOWN: {data.get('down','--')}% | DIR: {data.get('direction','--')} | CONF: {data.get('confidence','--')}% | Q: {data.get('quality_score','--')} | CTX: {data.get('context','--')}")
             hs = data["health_status"]; latency_acc += float(data["latency_ms"])
             color = {"HEALTHY": "#1f8b4c", "DELAYED": "#e0a100", "STALE": "#d17b00", "ERROR": "#a32828"}.get(hs, "#808080")
             self.health_labels[tf].setStyleSheet(f"color: {color};")
-            self.health_labels[tf].setText(f"HEALTH: {hs} | LAT: {data['latency_ms']}ms | STALE: {data['stale_seconds']}s")
+            self.health_labels[tf].setText('1 SEC: WAITING FOR WS / EXPERIMENTAL' if hs=='DISABLED' and tf=='1 SEC' else f"HEALTH: {hs} | LAT: {data.get('latency_ms','--')}ms | STALE: {data.get('stale_seconds','--')}s")
             factors = data.get("factors", [])
             up_factors = [f for f in factors if f["direction"] == "UP"]
             down_factors = [f for f in factors if f["direction"] == "DOWN"]
@@ -115,7 +115,7 @@ class MainWindow(QMainWindow):
             for w in micro.get('warnings', []):
                 self.log_message(f"WARN {tf} {w}")
 
-        self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + (latency_acc / 4)) / self.total_refreshes
+        self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + (latency_acc / 6)) / self.total_refreshes
         uptime = datetime.utcnow() - self.start_time
         self.telemetry.setText(
             f"SYSTEM TELEMETRY | API: OK | FREQ: 5s | REFRESH: {self.total_refreshes} | FAIL: {self.failed_refreshes} | AVG LAT: {self.avg_latency_ms:.2f}ms | UPTIME: {str(uptime).split('.')[0]} | SYMBOL: {result['symbol']} | SOURCE: {result.get('source', '--')}"

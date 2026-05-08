@@ -30,3 +30,11 @@ pytest -q
 - Still NOT a trading bot: no live trading, no keys, no margin/futures execution.
 - Order book and WebSocket context layer planned for future versions.
 
+
+## v0.3.1 Timeframe Expansion + Data Stability
+- Added multi-timeframe ladder: WEEK, DAY, HOUR, 10 MIN, 1 MIN, 1 SEC (experimental).
+- 1W provides global context for cleaner directional map.
+- 1S is intentionally experimental with safe fallback state `DISABLED / WAITING_FOR_WS`.
+- Added Timeframe Registry and Data Quality Layer to control freshness, candle sufficiency, timestamp and anomaly checks.
+- ProbabilityEngine now blocks scoring on bad data and emits `NO_DATA` with neutral score (50/50).
+- Added `MultiTimeframeState` for future Game Theory Layer input without adding TG logic yet.
