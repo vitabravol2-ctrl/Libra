@@ -89,6 +89,9 @@ class MainWindow(QMainWindow):
         self.avg_latency_ms = 0.0
         self.paper_mode_ready = False
         self.settings = TradingSettings()
+        self.timer = QTimer(self)
+        self.timer.setInterval(5000)
+        self.timer.timeout.connect(self.fetch_update)
 
         central = QWidget()
         root = QVBoxLayout(central)
@@ -116,9 +119,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self._refresh_settings_fields()
 
-        self.timer = QTimer(self)
-        self.timer.setInterval(5000)
-        self.timer.timeout.connect(self.fetch_update)
         self.timer.start()
         self.fetch_update()
 
