@@ -74,3 +74,13 @@ pytest -q
 - Added score stabilizer with hysteresis (UP >= 53, DOWN <= 47, 48-52 hold previous) and raw/stable score split.
 - Added 10 MIN fallback aggregation from 1m candles to reduce NO_DATA conditions.
 - Refined data quality statuses to include WAITING_FOR_WS/NO_DATA behaviors for safer pre-Game-Theory inputs.
+
+## v0.3.3 Cockpit GUI Refactor
+- GUI reorganized into a compact **trading cockpit** layout with three zones:
+  - **Top panel**: Current Price, API status, update status, system health, Start/Pause/Refresh.
+  - **Center panel**: large **TG main gauge** (`TG SCORE 1..100`) with LONG/SHORT/NEUTRAL color signaling.
+  - **Side panel**: compact timeframe indicators (WEEK/DAY/HOUR/10M/1M/1S) with color-dot status text.
+- Added **Scalping/Grid Settings** block as a local placeholder (in-memory only): Apply/Reset/Save Profile.
+- Added **Trade Control** block placeholder: TG Decision, Position State, Paper Mode, Last Signal/Reason, plus Arm/Disarm/Emergency Stop.
+- Compact logs now keep only the latest 20 lines, auto-scroll, and group warnings to reduce spam.
+- **No real trading added**: no order execution, no broker/exchange trading API actions.
