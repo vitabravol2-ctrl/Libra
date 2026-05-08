@@ -7,7 +7,7 @@ from gui.main_window import MainWindow, TradingSettings, compact_timeframe_text
 
 def test_gui_imports_and_window_builds(qapp):
     window = MainWindow()
-    assert window.windowTitle().endswith("v0.3.3")
+    assert window.windowTitle().endswith("v0.4.0")
 
 
 def test_settings_model_works():

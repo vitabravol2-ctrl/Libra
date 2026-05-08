@@ -6,6 +6,7 @@ from core.data_quality_engine import DataQualityEngine
 from core.datapack import HealthStatus, MultiTimeframeState
 from core.direction_factors_engine import DirectionFactorsEngine
 from core.microstructure_context_engine import MicrostructureContextEngine
+from core.game_theory_decision_engine import GameTheoryDecisionEngine
 from core.score_stabilizer import ScoreStabilizer
 from core.timeframe_registry import TIMEFRAME_REGISTRY
 
@@ -16,6 +17,7 @@ class ProbabilityEngine:
         self.micro_engine = MicrostructureContextEngine()
         self.quality_engine = DataQualityEngine()
         self.score_stabilizer = ScoreStabilizer()
+        self.game_theory_engine = GameTheoryDecisionEngine()
 
     def evaluate(self, datapack: dict[str, Any]) -> dict[str, Any]:
         output = {"symbol": datapack["symbol"], "current_price": datapack["current_price"], "timestamp": datapack["timestamp"], "timeframes": {}, "telemetry": datapack.get("telemetry", {})}
@@ -39,6 +41,8 @@ class ProbabilityEngine:
             if res["direction"] in {"UP", "DOWN"}: directions.append(res["direction"])
 
         output["multi_timeframe_state"] = self._build_state(output["timeframes"], directions)
+        gt = self.game_theory_engine.evaluate(output["multi_timeframe_state"], output["timeframes"])
+        output["game_theory"] = {**gt.__dict__, "paper_trade_intent": gt.paper_trade_intent.__dict__ if gt.paper_trade_intent else None}
         return output
 
     def _build_state(self, tf_results: dict[str, dict[str, Any]], directions: list[str]) -> MultiTimeframeState:
