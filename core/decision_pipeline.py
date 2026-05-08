@@ -28,7 +28,7 @@ class DecisionPipeline:
 
     def run(self, snapshot: dict) -> PipelineResult:
         regime = self.regime.analyze(snapshot)
-        liq = self.liquidity.detect(snapshot)
+        liq = self.liquidity.analyze(snapshot, regime)
         conf = self.confirmation.evaluate(snapshot)
         entry = self.entry.evaluate(regime.regime.value, liq.event.value, conf.score, conf.data_fresh, conf.spread_normal)
         exit_decision = self.exit.evaluate(entry.side, int(snapshot.get("ticks_in_profit", 0)), bool(snapshot.get("structure_break", False)), int(snapshot.get("elapsed_sec", 0)), bool(snapshot.get("emergency", False)))

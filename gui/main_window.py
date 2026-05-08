@@ -21,11 +21,12 @@ class EntrySettings:
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Tree Console v0.6.0")
+        self.setWindowTitle("BTCUSDT Tree Console v0.6.1")
         self.resize(1100, 760)
         self.pipeline = DecisionPipeline()
         self.settings = EntrySettings()
         self.log_dedup: deque[str] = deque(maxlen=40)
+        self._last_state_key: str | None = None
 
         central = QWidget()
         root = QVBoxLayout(central)
@@ -67,7 +68,7 @@ class MainWindow(QMainWindow):
         box = QGroupBox("DECISION TREE")
         v = QVBoxLayout(box)
         self.tree_nodes = {}
-        for node in ["MARKET REGIME", "LIQUIDITY EVENT", "CONFIRMATION", "ENTRY", "EXIT"]:
+        for node in ["MARKET REGIME", "LIQUIDITY EVENT", "SETUP STATUS", "ENTRY", "EXIT"]:
             label = QLabel(f"{node}: WAIT")
             self.tree_nodes[node] = label
             v.addWidget(label)
@@ -97,6 +98,8 @@ class MainWindow(QMainWindow):
             "reclaim": second % 4 == 0,
             "sweep_high": second % 4 == 1,
             "reject": second % 4 == 1,
+            "touch_lower_boundary": second % 4 == 2,
+            "touch_upper_boundary": False,
             "orderbook_imbalance": 0.9,
             "aggressive_trades": 0.8,
             "velocity": 0.7,
@@ -109,22 +112,36 @@ class MainWindow(QMainWindow):
         }
         result = self.pipeline.run(snapshot)
         regime = result.market_regime
+        liq = result.liquidity_event
+
         self.regime_label.setText(f"{regime['regime'].value}")
         self.conf_label.setText(f"CONFIDENCE {regime['confidence']}%")
-        direction = "LOOKING FOR LONG PULLBACK" if regime['regime'].value == 'TREND_UP' else "LOOKING FOR SHORT PULLBACK" if regime['regime'].value == 'TREND_DOWN' else "WAIT RANGE EDGE" if regime['regime'].value == 'RANGE' else "NO TRADE"
-        self.direction_label.setText(direction)
-        self.state_label.setText(f"STATE {result.entry['state']}")
+        self.direction_label.setText(f"SETUP SIDE {liq['setup_side']}")
+        self.state_label.setText(f"ENTRY {result.entry['state']} ({result.entry['reason']})")
 
-        self._set_node("MARKET REGIME", "READY")
-        self._set_node("LIQUIDITY EVENT", result.liquidity_event["state"])
-        self._set_node("CONFIRMATION", result.confirmation["state"])
-        self._set_node("ENTRY", result.entry["state"])
-        self._set_node("EXIT", result.exit["state"])
+        self._set_node("MARKET REGIME", regime["regime"].value)
+        self._set_node("LIQUIDITY EVENT", self._liquidity_display(liq))
+        self._set_node("SETUP STATUS", self._setup_display(liq))
+        self._set_node("ENTRY", "BLOCKED / NOT_IMPLEMENTED")
+        self._set_node("EXIT", result.exit["reason"])
 
-        self._add_log(f"regime={regime['regime'].value} liq={result.liquidity_event['event'].value} entry={result.entry['state']} exit={result.exit['reason']}")
+        state_key = f"liq={liq['event'].value}|setup={self._setup_display(liq)}"
+        if state_key != self._last_state_key:
+            self._last_state_key = state_key
+            self._add_log(state_key)
+
+    def _liquidity_display(self, liq: dict) -> str:
+        if liq["status"] == "BLOCKED":
+            return "BLOCKED"
+        return liq["metrics"].get("wait", liq["event"].value)
+
+    def _setup_display(self, liq: dict) -> str:
+        if liq["status"] == "BLOCKED":
+            return "NONE"
+        return liq["metrics"].get("setup", "WAIT")
 
     def _set_node(self, node: str, state: str):
-        color = {"ACTIVE": "yellow", "WAIT": "gray", "READY": "green", "BLOCKED": "red", "DONE": "green"}.get(state, "gray")
+        color = "red" if "BLOCKED" in state else "green" if "SETUP" in state or "READY" in state else "gray"
         self.tree_nodes[node].setText(f"{node}: {state}")
         self.tree_nodes[node].setStyleSheet(f"color:{color};")
 

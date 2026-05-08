@@ -130,3 +130,9 @@ Paper/simulation-only tactical layer added after Game Theory decision.
 - Decision pipeline теперь deterministic: `regime -> liquidity -> confirmation -> entry -> exit`.
 - Архитектура основана только на 5 узлах: MARKET REGIME, LIQUIDITY EVENT, CONFIRMATION, ENTRY, EXIT.
 - Цель системы: microstructure tick scalping (+1/+2/+3 ticks) без AI/предикторов.
+
+## v0.6.1 LIQUIDITY EVENT LAYER
+- второй слой дерева добавлен
+- система теперь после Market Regime ищет liquidity setup
+- entry всё ещё отключён
+- цель следующей версии v0.6.2: Confirmation Layer
