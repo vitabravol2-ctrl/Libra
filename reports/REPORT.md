@@ -131,3 +131,10 @@ Paper-only status remains enforced (no real order execution).
   - ProbabilityEngine contract unchanged
   - GameTheoryDecisionEngine contract unchanged
 - По-прежнему no real trading: без Binance keys, без futures/margin исполнения, только анализ и подготовка к paper trading.
+
+## v0.5.0 MARKET REGIME RESET
+- Старый decision слой отключён.
+- Новый фундамент начинается с Market Regime.
+- Пока нет входов (entry disabled).
+- Система определяет только режим и ожидаемое следующее событие.
+- Следующая версия: v0.5.1 Liquidity Event Layer.

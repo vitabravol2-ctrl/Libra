@@ -6,8 +6,8 @@ from core.data_quality_engine import DataQualityEngine
 from core.datapack import HealthStatus, MultiTimeframeState
 from core.direction_factors_engine import DirectionFactorsEngine
 from core.microstructure_context_engine import MicrostructureContextEngine
-from core.game_theory_decision_engine import GameTheoryDecisionEngine
-from core.tactical_entry_engine import TacticalEntryEngine
+from core.market_regime import MarketRegimeDetector
+from core.decision_tree import DecisionTreeEngine
 from core.score_stabilizer import ScoreStabilizer
 from core.timeframe_registry import TIMEFRAME_REGISTRY
 
@@ -18,8 +18,8 @@ class ProbabilityEngine:
         self.micro_engine = MicrostructureContextEngine()
         self.quality_engine = DataQualityEngine()
         self.score_stabilizer = ScoreStabilizer()
-        self.game_theory_engine = GameTheoryDecisionEngine()
-        self.tactical_entry_engine = TacticalEntryEngine()
+        self.market_regime_detector = MarketRegimeDetector()
+        self.decision_tree_engine = DecisionTreeEngine()
 
     def evaluate(self, datapack: dict[str, Any]) -> dict[str, Any]:
         output = {"symbol": datapack["symbol"], "current_price": datapack["current_price"], "timestamp": datapack["timestamp"], "timeframes": {}, "telemetry": datapack.get("telemetry", {})}
@@ -43,10 +43,30 @@ class ProbabilityEngine:
             if res["direction"] in {"UP", "DOWN"}: directions.append(res["direction"])
 
         output["multi_timeframe_state"] = self._build_state(output["timeframes"], directions)
-        gt = self.game_theory_engine.evaluate(output["multi_timeframe_state"], output["timeframes"])
-        output["game_theory"] = {**gt.__dict__, "paper_trade_intent": gt.paper_trade_intent.__dict__ if gt.paper_trade_intent else None}
-        tactical = self.tactical_entry_engine.evaluate(gt, output["multi_timeframe_state"], output["timeframes"])
-        output["tactical_entry"] = tactical.__dict__
+        snapshot = self._build_market_snapshot(output["timeframes"], output["multi_timeframe_state"])
+        regime_result = self.market_regime_detector.analyze(snapshot)
+        dt = self.decision_tree_engine.evaluate(regime_result)
+        output["market_regime"] = regime_result.__dict__ | {"regime": regime_result.regime.value}
+        output["decision_tree"] = dt.__dict__
+        output["game_theory"] = {
+            "global_score": dt.score,
+            "decision": dt.action,
+            "confidence": dt.score,
+            "market_regime": dt.regime,
+            "dominant_side": dt.allowed_direction,
+            "agreement_score": output["multi_timeframe_state"].agreement_score,
+            "conflict_score": output["multi_timeframe_state"].conflict_score,
+            "risk_level": "HIGH" if dt.action == "DO_NOT_TRADE" else "MEDIUM",
+            "execution_ready": False,
+            "scenario_type": "MARKET_REGIME_RESET_V0_5_0",
+            "explanations": [f"next_event={dt.next_required_event}"],
+            "strongest_reasons": [dt.reason],
+            "blocked_reasons": ["entries_disabled_in_v0_5_0"],
+            "active_timeframes": output["multi_timeframe_state"].active_timeframes,
+            "disabled_timeframes": output["multi_timeframe_state"].disabled_timeframes,
+            "paper_trade_intent": {"allowed": False, "side": "WAIT", "confidence": dt.score, "reason": "entries_disabled_in_v0_5_0", "risk_level": "HIGH"},
+        }
+        output["tactical_entry"] = {"side": "WAIT", "entry_window_open": False, "macro_direction": dt.allowed_direction, "pullback_state": dt.action, "micro_trigger": dt.next_required_event, "tactical_score": dt.score, "target_ticks": 0, "stop_ticks": 0, "confidence": dt.score}
         return output
 
     def _build_state(self, tf_results: dict[str, dict[str, Any]], directions: list[str]) -> MultiTimeframeState:
@@ -59,6 +79,23 @@ class ProbabilityEngine:
         clean = all(v["quality_score"] >= 45 or v["health_status"] == "DISABLED" for v in tf_results.values())
         warnings = [f"{k}:{','.join(v['quality_reasons'])}" for k, v in tf_results.items() if v["quality_reasons"]]
         return MultiTimeframeState(tf_results, active, disabled, agreement, conflict, dominant, clean, warnings)
+
+
+    def _build_market_snapshot(self, tf_results: dict[str, dict[str, Any]], multi_state: MultiTimeframeState) -> dict[str, Any]:
+        one_min = tf_results.get("1 MIN", {})
+        quality = one_min.get("quality_score", 0)
+        score = float(one_min.get("score", 50) or 50)
+        return {
+            "is_stale": one_min.get("health_status") in {"STALE", "DELAYED", "ERROR"},
+            "has_missing_data": len(multi_state.active_timeframes) < 2,
+            "volatility": float(one_min.get("factors_score", 50) or 50),
+            "directional_pressure": (score - 50.0) / 50.0,
+            "higher_micro_highs": score >= 58,
+            "lower_micro_lows": score <= 42,
+            "range_width": abs(score - 50.0) * 2,
+            "trend_strength": abs((score - 50.0) / 50.0),
+            "quality_score": quality,
+        }
 
     @staticmethod
     def _base_score(pack: Any) -> int:

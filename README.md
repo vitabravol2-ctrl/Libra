@@ -116,3 +116,10 @@ Paper/simulation-only tactical layer added after Game Theory decision.
 - Added **GT Reason Tape** for concise strongest/blocked reasons and short explanations (last 3-5 items).
 - Entry Window is a placeholder signal (`OPEN` when execution_ready=true, decision is LONG/SHORT, confidence>=60).
 - Runtime remains strictly **analysis-only / paper-prep**: no real trading execution, no Binance API keys.
+
+## v0.5.0 MARKET REGIME RESET
+- Старый decision-слой отключён и изолирован через новый pipeline.
+- Новый фундамент начинается с определения Market Regime.
+- В v0.5.0 входы в сделки отключены (no-entry mode).
+- Система определяет режим, разрешённое направление и ожидаемое следующее событие.
+- Следующая версия v0.5.1: Liquidity Event Layer.
