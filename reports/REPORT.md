@@ -97,3 +97,14 @@ Current factors are candle-derived only; order book + websocket microstructure i
 - Execution readiness is true only when quality/health/conflict/regime/trap gates are acceptable.
 - Added explanation traces for regime/decision transitions and block reasons for anti-chaos behavior.
 - Integration point in GUI now consumes `game_theory` payload for central decision telemetry.
+
+## Tactical Entry Engine v0.5.0
+
+Integrated TacticalEntryEngine for paper intent generation:
+- Decision -> Tactical Entry -> Paper Intent.
+- Macro/Pullback/Micro architecture implemented.
+- Entry window gating and anti-chaos/trap blocking added.
+- Tactical score and micro TP/SL tick assignment included.
+- Cockpit now shows tactical entry status and paper trade tape placeholder.
+
+Paper-only status remains enforced (no real order execution).

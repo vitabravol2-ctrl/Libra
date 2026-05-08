@@ -7,6 +7,7 @@ from core.datapack import HealthStatus, MultiTimeframeState
 from core.direction_factors_engine import DirectionFactorsEngine
 from core.microstructure_context_engine import MicrostructureContextEngine
 from core.game_theory_decision_engine import GameTheoryDecisionEngine
+from core.tactical_entry_engine import TacticalEntryEngine
 from core.score_stabilizer import ScoreStabilizer
 from core.timeframe_registry import TIMEFRAME_REGISTRY
 
@@ -18,6 +19,7 @@ class ProbabilityEngine:
         self.quality_engine = DataQualityEngine()
         self.score_stabilizer = ScoreStabilizer()
         self.game_theory_engine = GameTheoryDecisionEngine()
+        self.tactical_entry_engine = TacticalEntryEngine()
 
     def evaluate(self, datapack: dict[str, Any]) -> dict[str, Any]:
         output = {"symbol": datapack["symbol"], "current_price": datapack["current_price"], "timestamp": datapack["timestamp"], "timeframes": {}, "telemetry": datapack.get("telemetry", {})}
@@ -43,6 +45,8 @@ class ProbabilityEngine:
         output["multi_timeframe_state"] = self._build_state(output["timeframes"], directions)
         gt = self.game_theory_engine.evaluate(output["multi_timeframe_state"], output["timeframes"])
         output["game_theory"] = {**gt.__dict__, "paper_trade_intent": gt.paper_trade_intent.__dict__ if gt.paper_trade_intent else None}
+        tactical = self.tactical_entry_engine.evaluate(gt, output["multi_timeframe_state"], output["timeframes"])
+        output["tactical_entry"] = tactical.__dict__
         return output
 
     def _build_state(self, tf_results: dict[str, dict[str, Any]], directions: list[str]) -> MultiTimeframeState:

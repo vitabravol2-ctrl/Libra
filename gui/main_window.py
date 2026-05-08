@@ -252,7 +252,23 @@ class MainWindow(QMainWindow):
         self.paper_mode = QLabel("Paper: OFF")
         self.last_signal = QLabel("Last signal: --")
         self.last_reason = QLabel("Last reason: --")
-        for w in [self.trade_decision, self.position_state, self.paper_mode, self.last_signal, self.last_reason]:
+        self.tactical_head = QLabel("TACTICAL ENTRY: WAIT")
+        self.tactical_window = QLabel("ENTRY WINDOW: CLOSED")
+        self.tactical_meta = QLabel("MACRO -- | PULLBACK -- | MICRO --")
+        self.tactical_score = QLabel("TACTICAL SCORE: -- | TP -- | SL --")
+        self.paper_tape = QLabel("PAPER TRADE TAPE: --")
+        for w in [
+            self.trade_decision,
+            self.position_state,
+            self.paper_mode,
+            self.last_signal,
+            self.last_reason,
+            self.tactical_head,
+            self.tactical_window,
+            self.tactical_meta,
+            self.tactical_score,
+            self.paper_tape,
+        ]:
             layout.addWidget(w)
         buttons = QHBoxLayout()
         arm = QPushButton("Arm")
@@ -363,6 +379,20 @@ class MainWindow(QMainWindow):
         self.trade_decision.setText(f"Decision: {decision}")
         self.last_signal.setText(f"Last signal: GT {gt_score} ({dominant_side})")
         self.last_reason.setText(f"Last reason: {reasons}")
+        tactical = result.get("tactical_entry", {})
+        t_side = tactical.get("side", "WAIT")
+        t_window = "OPEN" if tactical.get("entry_window_open") else "CLOSED"
+        self.tactical_head.setText(f"TACTICAL ENTRY: {t_side}")
+        self.tactical_window.setText(f"ENTRY WINDOW: {t_window}")
+        self.tactical_meta.setText(
+            f"MACRO {tactical.get('macro_direction', '--')} | PULLBACK {tactical.get('pullback_state', '--')} | MICRO {tactical.get('micro_trigger', '--')}"
+        )
+        self.tactical_score.setText(
+            f"TACTICAL SCORE: {tactical.get('tactical_score', '--')} | TP +{tactical.get('target_ticks', 0)} | SL -{tactical.get('stop_ticks', 0)}"
+        )
+        self.paper_tape.setText(
+            f"PAPER TRADE TAPE: side={t_side} ts={result.get('timestamp', '--')} tp={tactical.get('target_ticks', 0)} conf={tactical.get('confidence', '--')}"
+        )
 
         avg_refresh_latency = (latency_acc / latency_count) if latency_count else 0.0
         self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + avg_refresh_latency) / self.total_refreshes
