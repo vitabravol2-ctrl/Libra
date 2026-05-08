@@ -85,11 +85,16 @@ class MainWindow(QMainWindow):
         self.total_refreshes += 1
         self.price_label.setText(f"Current Price: {result['current_price']:.2f}")
         latency_acc = 0.0
+        latency_count = 0
         for tf, data in result["timeframes"].items():
             score = int(data["score"]); self.bars[tf].setValue(score)
             self.bars[tf].setStyleSheet(f"QProgressBar::chunk {{ background-color: {'#1f8b4c' if score >= 51 else '#a32828'}; }}")
             self.labels[tf].setText(f"UP: {data.get('up','--')}% | DOWN: {data.get('down','--')}% | DIR: {data.get('direction','--')} | CONF: {data.get('confidence','--')}% | Q: {data.get('quality_score','--')} | CTX: {data.get('context','--')}")
-            hs = data["health_status"]; latency_acc += float(data["latency_ms"])
+            hs = data["health_status"]
+            latency_ms = data.get("latency_ms")
+            if latency_ms is not None:
+                latency_acc += float(latency_ms)
+                latency_count += 1
             color = {"HEALTHY": "#1f8b4c", "DELAYED": "#e0a100", "STALE": "#d17b00", "ERROR": "#a32828"}.get(hs, "#808080")
             self.health_labels[tf].setStyleSheet(f"color: {color};")
             self.health_labels[tf].setText('1 SEC: WAITING FOR WS / EXPERIMENTAL' if hs=='DISABLED' and tf=='1 SEC' else f"HEALTH: {hs} | LAT: {data.get('latency_ms','--')}ms | STALE: {data.get('stale_seconds','--')}s")
@@ -115,7 +120,8 @@ class MainWindow(QMainWindow):
             for w in micro.get('warnings', []):
                 self.log_message(f"WARN {tf} {w}")
 
-        self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + (latency_acc / 6)) / self.total_refreshes
+        avg_refresh_latency = (latency_acc / latency_count) if latency_count else 0.0
+        self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + avg_refresh_latency) / self.total_refreshes
         uptime = datetime.utcnow() - self.start_time
         self.telemetry.setText(
             f"SYSTEM TELEMETRY | API: OK | FREQ: 5s | REFRESH: {self.total_refreshes} | FAIL: {self.failed_refreshes} | AVG LAT: {self.avg_latency_ms:.2f}ms | UPTIME: {str(uptime).split('.')[0]} | SYMBOL: {result['symbol']} | SOURCE: {result.get('source', '--')}"
