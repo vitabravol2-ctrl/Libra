@@ -172,3 +172,14 @@ Paper-only status remains enforced (no real order execution).
 - Entry gate теперь блокирует вход при high spoof/exhaustion/decay, weak continuation, low final quality и absorption against setup.
 - GUI обновлён: добавлен microstructure stage в execution tree и компактные метрики microstructure в ORDERFLOW panel.
 - Добавлены тесты `tests/test_microstructure_intelligence.py`.
+
+## v0.6.5 EXECUTION QUALITY ENGINE
+- added deterministic execution intelligence
+- queue positioning
+- maker quality analysis
+- spread harvesting
+- slippage risk
+- fill probability
+- adaptive timeout
+- partial fill support
+- cancel/reprice engine

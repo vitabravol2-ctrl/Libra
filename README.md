@@ -158,3 +158,14 @@ Paper/simulation-only tactical layer added after Game Theory decision.
 - spoof/absorption/exhaustion detection
 - entry quality filter added
 - orderflow intelligence added
+
+## v0.6.5 EXECUTION QUALITY ENGINE
+- added deterministic execution intelligence
+- queue positioning
+- maker quality analysis
+- spread harvesting
+- slippage risk
+- fill probability
+- adaptive timeout
+- partial fill support
+- cancel/reprice engine

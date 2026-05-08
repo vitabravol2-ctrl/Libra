@@ -17,6 +17,14 @@ class PaperPositionState:
     pnl: float = 0.0
     pnl_ticks: int = 0
     hold_seconds: int = 0
+    filled_qty: float = 0.0
+    remaining_qty: float = 0.0
+    avg_entry_price: float = 0.0
+    avg_exit_price: float = 0.0
+    partial_fill_pct: float = 0.0
+    execution_score: int = 0
+    fill_probability: int = 0
+    spread_capture: int = 0
     metrics: dict[str, Any] = field(default_factory=dict)
 
 
@@ -34,10 +42,14 @@ class PaperPositionEngine:
             tp_price=tp_price,
             sl_price=sl_price,
             opened_ts=now_ts,
+            filled_qty=size,
+            remaining_qty=0.0,
+            avg_entry_price=entry_price,
+            partial_fill_pct=100.0,
         )
         return self.position
 
-    def update(self, price: float, now_ts: int, spread: float, freshness_ms: int, regime: str, structure_break: bool, momentum: float, timeout_seconds: int) -> PaperPositionState:
+    def update(self, price: float, now_ts: int, spread: float, freshness_ms: int, regime: str, structure_break: bool, momentum: float, timeout_seconds: int, execution_quality: dict[str, Any] | None = None) -> PaperPositionState:
         p = self.position
         if p.state == "CLOSED":
             return p
@@ -46,6 +58,13 @@ class PaperPositionEngine:
         sign = 1 if p.side == "LONG" else -1
         p.pnl = (price - p.entry_price) * sign * p.size
         p.pnl_ticks = int(round(((price - p.entry_price) * sign) / self.tick_size))
+        if execution_quality:
+            p.execution_score = int(execution_quality.get("final_execution_score", 0))
+            p.fill_probability = int(execution_quality.get("fill_probability", 0))
+            p.spread_capture = int(execution_quality.get("spread_capture_score", 0))
+            p.partial_fill_pct = max(0.0, min(100.0, float(execution_quality.get("fill_probability", 100))))
+            p.filled_qty = round(p.size * p.partial_fill_pct / 100.0, 6)
+            p.remaining_qty = round(max(0.0, p.size - p.filled_qty), 6)
 
         reason = ""
         if spread > 4.0 or freshness_ms > 2000 or regime == "CHAOS":
@@ -64,5 +83,6 @@ class PaperPositionEngine:
         if reason:
             p.state = "EXIT"
             p.exit_reason = reason
+            p.avg_exit_price = price
             p.state = "CLOSED"
         return p
