@@ -81,3 +81,19 @@ Current factors are candle-derived only; order book + websocket microstructure i
   - Trade control state panel with paper-mode arming/disarming.
 - Logging panel is compact (20 latest events), auto-scrolling, and warning-group aware.
 - Runtime remains analysis-only: **no live order placement** in this release.
+
+## v0.4.0 Game Theory Decision Engine Foundation
+- Introduced `core/game_theory_decision_engine.py` as deterministic explainable decision layer.
+- Input sources: `MultiTimeframeState` + per-timeframe probability/factors/microstructure outputs + quality/health states.
+- Output model: `GameTheoryDecisionResult` + `PaperTradeIntent` placeholder.
+- Decision model:
+  - `global_score >= 65` => LONG candidate.
+  - `global_score <= 35` => SHORT candidate.
+  - `36..64` => WAIT.
+  - Additional gates: conflict, regime chaos, trap risk, quality and health.
+- Regime-aware weighting:
+  - Trend profile: WEEK/DAY/HOUR emphasized.
+  - Micro profile: 10MIN/1MIN emphasized.
+- Execution readiness is true only when quality/health/conflict/regime/trap gates are acceptable.
+- Added explanation traces for regime/decision transitions and block reasons for anti-chaos behavior.
+- Integration point in GUI now consumes `game_theory` payload for central decision telemetry.

@@ -74,7 +74,7 @@ def compact_timeframe_text(tf: str, data: dict) -> str:
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.3.3")
+        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.4.0")
         self.resize(1100, 760)
         self.collector = DataCollector()
         self.engine = ProbabilityEngine()
@@ -142,14 +142,14 @@ class MainWindow(QMainWindow):
         return box
 
     def _build_tg_gauge(self) -> QGroupBox:
-        box = QGroupBox("CENTER PANEL — MAIN TG GAUGE")
+        box = QGroupBox("CENTER PANEL — GAME THEORY ENGINE")
         layout = QVBoxLayout(box)
-        self.tg_state_label = QLabel("TG ENGINE: PREPARED / NOT ACTIVE")
+        self.tg_state_label = QLabel("GAME THEORY ENGINE: PREPARED / NOT ACTIVE")
         self.tg_gauge = QProgressBar()
         self.tg_gauge.setRange(1, 100)
         self.tg_gauge.setValue(50)
         self.tg_gauge.setFormat("TG SCORE %v")
-        self.tg_decision_label = QLabel("TG Decision: WAIT")
+        self.tg_decision_label = QLabel("GT Decision: WAIT")
         layout.addWidget(self.tg_state_label)
         layout.addWidget(self.tg_gauge)
         layout.addWidget(self.tg_decision_label)
@@ -193,7 +193,7 @@ class MainWindow(QMainWindow):
     def _build_trade_control_panel(self) -> QGroupBox:
         box = QGroupBox("TRADE CONTROL")
         layout = QVBoxLayout(box)
-        self.trade_decision = QLabel("TG Decision: WAIT")
+        self.trade_decision = QLabel("GT Decision: WAIT")
         self.position_state = QLabel("Position State: FLAT")
         self.paper_mode = QLabel("Paper Mode: OFF")
         self.last_signal = QLabel("Last Signal: --")
@@ -217,7 +217,7 @@ class MainWindow(QMainWindow):
 
     def _emergency_stop(self) -> None:
         self._set_paper_mode(False)
-        self.trade_decision.setText("TG Decision: WAIT")
+        self.trade_decision.setText("GT Decision: WAIT")
         self.last_reason.setText("Last Reason: Emergency stop activated")
 
     def _refresh_settings_fields(self) -> None:
@@ -274,19 +274,23 @@ class MainWindow(QMainWindow):
                 latency_acc += float(lat)
                 latency_count += 1
 
-        if tg_scores:
-            tg_score = max(1, min(100, int(sum(tg_scores) / len(tg_scores))))
-            self.tg_state_label.setText("TG ENGINE: PREPARED")
-            self.tg_gauge.setValue(tg_score)
-            color = "#1f8b4c" if tg_score >= 51 else "#a32828" if tg_score <= 49 else "#7c7c7c"
-            self.tg_gauge.setStyleSheet(f"QProgressBar::chunk {{ background-color: {color}; }}")
-            decision = "LONG" if tg_score >= self.settings.long_threshold else "SHORT" if tg_score <= self.settings.short_threshold else "WAIT"
-            self.tg_decision_label.setText(f"TG Decision: {decision}")
-            self.trade_decision.setText(f"TG Decision: {decision}")
-            self.last_signal.setText(f"Last Signal: TG {tg_score}")
-            self.last_reason.setText("Last Reason: Global score placeholder from MTF state")
-        else:
-            self.tg_state_label.setText("TG ENGINE: PREPARED / NOT ACTIVE")
+        gt = result.get("game_theory", {})
+        gt_score = int(gt.get("global_score", max(1, min(100, int(sum(tg_scores) / len(tg_scores))) if tg_scores else 50)))
+        decision = gt.get("decision", "WAIT")
+        regime = gt.get("market_regime", "UNKNOWN")
+        confidence = int(gt.get("confidence", 0))
+        execution_ready = bool(gt.get("execution_ready", False))
+        dominant_side = gt.get("dominant_side", "MIXED")
+        reasons = ", ".join(gt.get("strongest_reasons", [])[:2]) or "--"
+
+        self.tg_state_label.setText(f"GAME THEORY ENGINE: {regime} | CONF {confidence}% | EXEC {'YES' if execution_ready else 'NO'}")
+        self.tg_gauge.setValue(gt_score)
+        color = "#1f8b4c" if decision == "LONG" else "#a32828" if decision == "SHORT" else "#7c7c7c"
+        self.tg_gauge.setStyleSheet(f"QProgressBar::chunk {{ background-color: {color}; }}")
+        self.tg_decision_label.setText(f"GT Decision: {decision}")
+        self.trade_decision.setText(f"GT Decision: {decision}")
+        self.last_signal.setText(f"Last Signal: GT {gt_score} ({dominant_side})")
+        self.last_reason.setText(f"Last Reason: {reasons}")
 
         avg_refresh_latency = (latency_acc / latency_count) if latency_count else 0.0
         self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + avg_refresh_latency) / self.total_refreshes

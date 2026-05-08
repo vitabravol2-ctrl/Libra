@@ -84,3 +84,13 @@ pytest -q
 - Added **Trade Control** block placeholder: TG Decision, Position State, Paper Mode, Last Signal/Reason, plus Arm/Disarm/Emergency Stop.
 - Compact logs now keep only the latest 20 lines, auto-scroll, and group warnings to reduce spam.
 - **No real trading added**: no order execution, no broker/exchange trading API actions.
+
+## v0.4.0 Game Theory Decision Engine Foundation
+- Added deterministic `GameTheoryDecisionEngine` as the central decision brain (not AI).
+- Added `GameTheoryDecisionResult` with explainable fields: `global_score`, `decision`, `market_regime`, `confidence`, agreement/conflict, risk, execution readiness, reasons, and per-timeframe weights.
+- Added market regime detection: `TREND_UP`, `TREND_DOWN`, `RANGE`, `EXPANSION`, `PULLBACK`, `REVERSAL_RISK`, `CHAOS`, plus trap-oriented scenario routing.
+- Added dynamic timeframe weighting profiles (trend vs micro mode).
+- Added trap/fake-move interpretation (`fake_breakout`, `fake_breakdown`, `liquidity_grab`, weak/trapped participants, exhaustion).
+- Added `PaperTradeIntent` placeholder for future paper trading integration (no real orders).
+- GUI main gauge now displays **Game Theory Engine** state with regime/confidence/execution-readiness and explainable reasons.
+- Still **analysis-only**: no Binance keys, no futures/margin/autotrading execution.
