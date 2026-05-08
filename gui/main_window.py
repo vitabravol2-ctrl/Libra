@@ -24,7 +24,7 @@ class EntrySettings:
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Tree Console v0.6.3")
+        self.setWindowTitle("BTCUSDT Tree Console v0.6.5")
         self.resize(1380, 880)
         self.pipeline = DecisionPipeline()
         self.settings = EntrySettings()
@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         bottom = QHBoxLayout()
         bottom.addWidget(self._build_position_panel(), 2)
         bottom.addWidget(self._build_orderflow_panel(), 2)
+        bottom.addWidget(self._build_execution_panel(), 2)
         bottom.addWidget(self._build_logs_panel(), 3)
         root.addLayout(bottom)
         self.setCentralWidget(central)
@@ -76,7 +77,7 @@ class MainWindow(QMainWindow):
         box = QGroupBox("EXECUTION TREE")
         v = QVBoxLayout(box)
         self.tree_nodes = {}
-        for node in ["MARKET REGIME", "LIQUIDITY EVENT", "CONFIRMATION", "ENTRY GATE", "PAPER POSITION", "EXIT MANAGER"]:
+        for node in ["MARKET REGIME", "LIQUIDITY EVENT", "CONFIRMATION", "MICROSTRUCTURE", "EXECUTION QUALITY", "ENTRY GATE", "PAPER POSITION", "EXIT MANAGER"]:
             label = QLabel(f"{node}: WAIT")
             self.tree_nodes[node] = label
             v.addWidget(label)
@@ -96,7 +97,7 @@ class MainWindow(QMainWindow):
         box = QGroupBox("PAPER POSITION")
         g = QGridLayout(box)
         self.pos_labels = {}
-        rows = ["STATE", "ENTRY", "PNL", "PNL_TICKS", "HOLD", "TP", "SL", "EXIT"]
+        rows = ["STATE", "ENTRY", "AVG_ENTRY", "AVG_EXIT", "PARTIAL_FILL", "EXEC_SCORE", "FILL_PROB", "SPREAD_CAPTURE", "PNL", "PNL_TICKS", "HOLD", "TP", "SL", "EXIT"]
         for r, key in enumerate(rows):
             g.addWidget(QLabel(key), r, 0)
             v = QLabel("--")
@@ -113,6 +114,18 @@ class MainWindow(QMainWindow):
             p = QProgressBar()
             p.setRange(0, 100)
             self.of_bars[k] = p
+            v.addWidget(p)
+        return box
+
+
+    def _build_execution_panel(self):
+        box = QGroupBox("EXECUTION QUALITY")
+        v = QVBoxLayout(box)
+        self.exec_bars = {}
+        for k in ["queue", "maker", "fill_prob", "slippage", "spread_capture", "timeout_quality", "partial_risk"]:
+            v.addWidget(QLabel(k))
+            p = QProgressBar(); p.setRange(0, 100)
+            self.exec_bars[k] = p
             v.addWidget(p)
         return box
 
@@ -137,7 +150,7 @@ class MainWindow(QMainWindow):
             "structure_break": second % 11 == 0, "momentum": 0.7 if second % 7 else 0.01,
         }
         result = self.pipeline.run(snapshot)
-        regime, liq, conf, entry, pos, ex = result.market_regime, result.liquidity_event, result.confirmation, result.entry, result.position, result.exit
+        regime, liq, conf, eq, entry, pos, ex = result.market_regime, result.liquidity_event, result.confirmation, result.execution_quality, result.entry, result.position, result.exit
         self.top_labels["BTCUSDT"].setText("BTCUSDT")
         self.top_labels["WS"].setText("WS: OK" if snapshot["freshness_ms"] < 1500 else "WS: STALE")
         self.top_labels["SPREAD"].setText(f"SPREAD: {snapshot['spread']:.2f}")
@@ -151,11 +164,19 @@ class MainWindow(QMainWindow):
         self._set_node("MARKET REGIME", regime["regime"].value)
         self._set_node("LIQUIDITY EVENT", liq["status"])
         self._set_node("CONFIRMATION", f"{conf['status'].value} {conf['score']}")
+        self._set_node("MICROSTRUCTURE", "READY" if conf["status"].value == "READY" else "WAIT")
+        self._set_node("EXECUTION QUALITY", f"{eq['state'].value} {eq['final_execution_score']}")
         self._set_node("ENTRY GATE", "READY" if entry["allowed"] else "BLOCKED")
         self._set_node("PAPER POSITION", pos["state"])
         self._set_node("EXIT MANAGER", ex["state"])
         self.pos_labels["STATE"].setText(f"{pos['side']} / {pos['state']}")
         self.pos_labels["ENTRY"].setText(f"{pos['entry_price']:.2f}")
+        self.pos_labels["AVG_ENTRY"].setText(f"{pos.get('avg_entry_price',0.0):.2f}")
+        self.pos_labels["AVG_EXIT"].setText(f"{pos.get('avg_exit_price',0.0):.2f}")
+        self.pos_labels["PARTIAL_FILL"].setText(f"{pos.get('partial_fill_pct',0.0):.1f}%")
+        self.pos_labels["EXEC_SCORE"].setText(str(pos.get("execution_score",0)))
+        self.pos_labels["FILL_PROB"].setText(f"{pos.get('fill_probability',0.0):.2f}")
+        self.pos_labels["SPREAD_CAPTURE"].setText(str(pos.get("spread_capture_score",0)))
         self.pos_labels["PNL"].setText(f"{pos['pnl']:.3f}")
         self.pos_labels["PNL_TICKS"].setText(str(pos["pnl_ticks"]))
         self.pos_labels["HOLD"].setText(f"{pos['hold_seconds']}s")
@@ -167,16 +188,25 @@ class MainWindow(QMainWindow):
         self.of_bars["aggressive_sells"].setValue(min(100, int(snapshot["aggressive_sells"] / 2)))
         self.of_bars["velocity"].setValue(min(100, int(snapshot["micro_velocity"] * 100)))
         self.of_bars["spread_quality"].setValue(min(100, conf["spread_score"] * 10))
-        self._log_state(regime, liq, conf, entry, pos, ex)
+        self.exec_bars["queue"].setValue(eq["queue_score"])
+        self.exec_bars["maker"].setValue(eq["maker_score"])
+        self.exec_bars["fill_prob"].setValue(int(eq["fill_probability"]*100))
+        self.exec_bars["slippage"].setValue(int((1-eq["slippage_risk"])*100))
+        self.exec_bars["spread_capture"].setValue(eq["spread_capture_score"])
+        self.exec_bars["timeout_quality"].setValue(eq["timeout_quality"])
+        self.exec_bars["partial_risk"].setValue(int((1-eq["partial_fill_risk"])*100))
+        self._log_state(regime, liq, conf, eq, entry, pos, ex)
 
     def _set_node(self, node: str, state: str):
         color = "#e74c3c" if "BLOCKED" in state or state in {"EXITED", "CLOSED"} else "#2ecc71" if state in {"READY", "ACTIVE", "OPEN", "HOLD"} else "#95a5a6"
         self.tree_nodes[node].setText(f"{node}: {state}")
         self.tree_nodes[node].setStyleSheet(f"color:{color};font-weight:700;")
 
-    def _log_state(self, regime: dict, liq: dict, conf: dict, entry: dict, pos: dict, ex: dict):
+    def _log_state(self, regime: dict, liq: dict, conf: dict, eq: dict, entry: dict, pos: dict, ex: dict):
         messages = [f"regime={regime['regime'].value}", f"liq={liq['status']}/{liq['setup_side']}", f"confirmation={conf['status'].value}/{conf['score']}"]
+        if eq["reason"] != "execution_ok": messages.append(eq["reason"])
         if entry["allowed"]: messages.append("entry allowed")
+        else: messages.append("execution blocked")
         if pos["state"] == "OPEN": messages.append("paper position opened")
         if pos["exit_reason"]: messages.append(f"exit {pos['exit_reason']}")
         if ex["state"] == "EXITED": messages.append("exit manager exited")

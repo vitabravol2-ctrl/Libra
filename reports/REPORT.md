@@ -165,3 +165,14 @@ Paper-only status remains enforced (no real order execution).
 - Блокировки подтверждения активируются при CHAOS/UNKNOWN, blocked liquidity, stale data и abnormal spread.
 - Entry по-прежнему принудительно отключён (NOT_IMPLEMENTED).
 - Следующий этап: v0.6.3 ENTRY GATE.
+
+## v0.6.5 EXECUTION QUALITY ENGINE
+- added deterministic execution intelligence
+- queue positioning
+- maker quality analysis
+- spread harvesting
+- slippage risk
+- fill probability
+- adaptive timeout
+- partial fill support
+- cancel/reprice engine

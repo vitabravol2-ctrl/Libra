@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from core.confirmation_engine import ConfirmationEngine
 from core.entry_gate import EntryGate
+from core.execution_quality import ExecutionQualityEngine
 from core.exit_manager import ExitManager
 from core.liquidity_events import LiquidityEventDetector
 from core.market_regime import MarketRegimeDetector
@@ -15,6 +16,7 @@ class PipelineResult:
     market_regime: dict
     liquidity_event: dict
     confirmation: dict
+    execution_quality: dict
     entry: dict
     position: dict
     exit: dict
@@ -25,6 +27,7 @@ class DecisionPipeline:
         self.regime = MarketRegimeDetector()
         self.liquidity = LiquidityEventDetector()
         self.confirmation = ConfirmationEngine()
+        self.execution_quality = ExecutionQualityEngine()
         self.entry = EntryGate()
         self.paper = PaperPositionEngine()
         self.exit = ExitManager()
@@ -33,8 +36,10 @@ class DecisionPipeline:
         regime = self.regime.analyze(snapshot)
         liq = self.liquidity.analyze(snapshot, regime)
         conf = self.confirmation.analyze(snapshot, regime, liq)
-
         price = float(snapshot.get("price", 0.0))
+
+        eq = self.execution_quality.analyze(snapshot, regime.__dict__, liq.__dict__, conf.__dict__, {"momentum": float(snapshot.get("momentum", 0.2))}, {"side": liq.setup_side})
+
         entry = self.entry.evaluate(
             regime=regime.regime.value,
             liquidity_status=liq.status,
@@ -46,11 +51,14 @@ class DecisionPipeline:
             price=price,
             threshold=int(snapshot.get("score_threshold", 70)),
             timeout_seconds=int(snapshot.get("timeout_seconds", 30)),
+            execution_quality=eq.__dict__,
+            execution_threshold=int(snapshot.get("execution_threshold", 60)),
         )
 
         now_ts = int(snapshot.get("now_ts", 0))
         if entry.allowed and self.paper.position.state == "CLOSED":
-            self.paper.open(entry.side, float(snapshot.get("paper_size", 0.02)), entry.entry_price, entry.tp_price, entry.sl_price, now_ts)
+            self.paper.open(entry.side, float(snapshot.get("paper_size", 0.02)), entry.entry_price, entry.tp_price, entry.sl_price, now_ts, execution_quality=eq.__dict__)
+
         pos = self.paper.update(
             price=price,
             now_ts=now_ts,
@@ -60,6 +68,7 @@ class DecisionPipeline:
             structure_break=bool(snapshot.get("structure_break", False)),
             momentum=float(snapshot.get("momentum", 0.2)),
             timeout_seconds=int(snapshot.get("timeout_seconds", 30)),
+            timeout_quality=eq.timeout_quality,
         )
         exit_decision = self.exit.evaluate(pos)
-        return PipelineResult(regime.__dict__, liq.__dict__, conf.__dict__, entry.__dict__, pos.__dict__, exit_decision.__dict__)
+        return PipelineResult(regime.__dict__, liq.__dict__, conf.__dict__, eq.__dict__, entry.__dict__, pos.__dict__, exit_decision.__dict__)

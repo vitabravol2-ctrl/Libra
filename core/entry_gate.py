@@ -36,6 +36,10 @@ class EntryGate:
         fee_ticks: int = 8,
         buffer_ticks: int = 4,
         timeout_seconds: int = 30,
+        execution_quality: dict | None = None,
+        execution_threshold: int = 60,
+        min_fill_probability: float = 0.5,
+        max_slippage_risk: float = 0.55,
     ) -> EntryDecision:
         if regime == "CHAOS":
             return self._blocked(side, price, timeout_seconds, "blocked_regime_chaos")
@@ -50,6 +54,16 @@ class EntryGate:
         if freshness_ms > max_freshness_ms:
             return self._blocked(side, price, timeout_seconds, "blocked_stale_data")
 
+        execution_quality = execution_quality or {}
+        if execution_quality:
+            if int(execution_quality.get("final_execution_score", 0)) < execution_threshold:
+                return self._blocked(side, price, timeout_seconds, "blocked_execution_score")
+            if float(execution_quality.get("fill_probability", 0.0)) < min_fill_probability:
+                return self._blocked(side, price, timeout_seconds, "blocked_fill_probability")
+            if float(execution_quality.get("slippage_risk", 1.0)) > max_slippage_risk:
+                return self._blocked(side, price, timeout_seconds, "blocked_slippage_risk")
+            if int(execution_quality.get("spread_capture_score", 0)) <= 0:
+                return self._blocked(side, price, timeout_seconds, "blocked_spread_capture")
         tp_ticks = self._tp_ticks(spread=spread, score=confirmation_score, mode=tp_mode, adaptive_tp=adaptive_tp, fee_ticks=fee_ticks, buffer_ticks=buffer_ticks)
         sl_ticks = max(12, int(round(tp_ticks * 0.55)))
 
