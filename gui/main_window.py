@@ -74,7 +74,7 @@ def compact_timeframe_text(tf: str, data: dict) -> str:
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.4.1")
+        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.4.2")
         self.resize(1280, 820)
         self.collector = DataCollector()
         self.engine = ProbabilityEngine()
@@ -103,8 +103,11 @@ class MainWindow(QMainWindow):
         cockpit = QGridLayout()
         cockpit.setHorizontalSpacing(10)
         cockpit.setVerticalSpacing(10)
-        cockpit.addWidget(self._build_tg_gauge(), 0, 0, 2, 2)
-        cockpit.addWidget(self._build_timeframes_panel(), 0, 2)
+        cockpit.addWidget(self._build_tg_gauge(), 0, 0)
+        cockpit.addWidget(self._build_market_state_panel(), 0, 1)
+        cockpit.addWidget(self._build_agreement_panel(), 0, 2)
+        cockpit.addWidget(self._build_timeframes_panel(), 1, 0)
+        cockpit.addWidget(self._build_reason_tape(), 1, 1)
         cockpit.addWidget(self._build_trade_control_panel(), 1, 2)
         cockpit.addWidget(self._build_settings_panel(), 0, 3, 2, 1)
         cockpit.setColumnStretch(0, 2)
@@ -139,6 +142,8 @@ class MainWindow(QMainWindow):
         QLabel#GaugeScore { font-size: 72px; font-weight: 700; qproperty-alignment: 'AlignCenter'; }
         QLabel#GaugeDecision { font-size: 28px; font-weight: 700; qproperty-alignment: 'AlignCenter'; }
         QLabel#GaugeMeta { font-size: 13px; color: #9fb2c4; qproperty-alignment: 'AlignCenter'; }
+        QLabel[role='MetricLabel'] { color: #8da5bf; font-size: 11px; }
+        QLabel[role='MetricValue'] { color: #dbe6f2; font-size: 12px; font-weight: 600; }
         QFrame#TimeframeCard { background: #172330; border: 1px solid #24384b; border-radius: 6px; }
         QLabel[role='TFName'] { font-weight: 700; font-size: 11px; color: #9fb2c4; }
         QLabel[role='TFValue'] { font-size: 16px; font-weight: 700; }
@@ -185,6 +190,16 @@ class MainWindow(QMainWindow):
 
         self.tg_decision_label = QLabel("GT Decision: WAIT")
         self.tg_decision_label.setProperty("role", "Heading")
+        self.tg_regime = QLabel("REGIME: --")
+        self.tg_dom = QLabel("DOMINANT: --")
+        self.tg_conf = QLabel("CONF: 0%")
+        self.tg_exec = QLabel("EXEC: NO")
+        self.tg_risk = QLabel("RISK: --")
+        self.tg_scenario = QLabel("SCENARIO: --")
+        self.tg_agree = QLabel("AGREE: --")
+        self.tg_conflict = QLabel("CONFLICT: --")
+        for widget in [self.tg_regime, self.tg_dom, self.tg_conf, self.tg_exec, self.tg_risk, self.tg_scenario, self.tg_agree, self.tg_conflict]:
+            widget.setObjectName("GaugeMeta")
 
         layout.addWidget(self.tg_state_label)
         layout.addStretch(1)
@@ -193,6 +208,43 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.tg_meta_line)
         layout.addStretch(1)
         layout.addWidget(self.tg_decision_label)
+        for widget in [self.tg_regime, self.tg_dom, self.tg_conf, self.tg_exec, self.tg_risk, self.tg_scenario, self.tg_agree, self.tg_conflict]:
+            layout.addWidget(widget)
+        return box
+
+    def _build_market_state_panel(self) -> QGroupBox:
+        box = QGroupBox("MARKET STATE")
+        box.setObjectName("Card")
+        layout = QVBoxLayout(box)
+        self.market_mode = QLabel("Market Mode: --")
+        self.strongest_reason = QLabel("Strongest: --")
+        self.blocked_reason = QLabel("Blocked: --")
+        self.trap_risk = QLabel("Trap Risk: --")
+        self.pullback_state = QLabel("Pullback State: --")
+        self.entry_window = QLabel("Entry Window: CLOSED")
+        for w in [self.market_mode, self.strongest_reason, self.blocked_reason, self.trap_risk, self.pullback_state, self.entry_window]:
+            layout.addWidget(w)
+        return box
+
+    def _build_agreement_panel(self) -> QGroupBox:
+        box = QGroupBox("TIMEFRAME AGREEMENT")
+        box.setObjectName("Card")
+        layout = QVBoxLayout(box)
+        self.agreement_score_label = QLabel("Agreement: --")
+        self.conflict_score_label = QLabel("Conflict: --")
+        self.active_tfs_label = QLabel("Active TFs: --")
+        self.disabled_tfs_label = QLabel("Disabled TFs: --")
+        for w in [self.agreement_score_label, self.conflict_score_label, self.active_tfs_label, self.disabled_tfs_label]:
+            layout.addWidget(w)
+        return box
+
+    def _build_reason_tape(self) -> QGroupBox:
+        box = QGroupBox("GT REASONS")
+        box.setObjectName("Card")
+        layout = QVBoxLayout(box)
+        self.reason_tape = QLabel("--")
+        self.reason_tape.setWordWrap(True)
+        layout.addWidget(self.reason_tape)
         return box
 
     def _build_timeframes_panel(self) -> QGroupBox:
@@ -210,10 +262,13 @@ class MainWindow(QMainWindow):
             val.setProperty("role", "TFValue")
             direct = QLabel("NO_DATA")
             direct.setProperty("role", "TFDir")
+            ctx = QLabel("Q-- / --")
+            ctx.setProperty("role", "TFDir")
             card_layout.addWidget(name)
             card_layout.addWidget(val)
             card_layout.addWidget(direct)
-            self.tf_compact_labels[tf] = {"value": val, "dir": direct}
+            card_layout.addWidget(ctx)
+            self.tf_compact_labels[tf] = {"value": val, "dir": direct, "ctx": ctx}
             grid.addWidget(card, idx // 2, idx % 2)
         return box
 
@@ -338,6 +393,9 @@ class MainWindow(QMainWindow):
             self.tf_compact_labels[tf]["value"].setText(value)
             self.tf_compact_labels[tf]["value"].setStyleSheet(f"color: {color};")
             self.tf_compact_labels[tf]["dir"].setText(direction)
+            quality = data.get("quality_status", "Q--")
+            context = data.get("context_label", data.get("market_context", "--"))
+            self.tf_compact_labels[tf]["ctx"].setText(f"{quality} / {context}")
             lat = data.get("latency_ms")
             if lat is not None:
                 latency_acc += float(lat)
@@ -350,7 +408,14 @@ class MainWindow(QMainWindow):
         confidence = int(gt.get("confidence", 0))
         execution_ready = bool(gt.get("execution_ready", False))
         dominant_side = gt.get("dominant_side", "MIXED")
+        risk_level = gt.get("risk_level", "UNKNOWN")
+        scenario = gt.get("scenario_type", "--")
+        agreement = int(gt.get("agreement_score", 0))
+        conflict = int(gt.get("conflict_score", 0))
+        blocked_reasons = gt.get("blocked_reasons", [])
+        explanations = gt.get("explanations", [])
         reasons = ", ".join(gt.get("strongest_reasons", [])[:2]) or "--"
+        entry_open = execution_ready and decision in {"LONG", "SHORT"} and confidence >= 60
 
         self.tg_state_label.setText("GAME THEORY ENGINE LIVE")
         self.tg_score_big.setText(str(gt_score))
@@ -360,6 +425,31 @@ class MainWindow(QMainWindow):
         self.tg_decision_big.setStyleSheet(f"color: {color};")
         self.tg_meta_line.setText(f"{regime} · CONF {confidence}% · EXEC {'YES' if execution_ready else 'NO'}")
         self.tg_decision_label.setText(f"GT Decision: {decision}")
+        self.tg_regime.setText(f"REGIME: {regime}")
+        self.tg_dom.setText(f"DOMINANT: {dominant_side}")
+        self.tg_conf.setText(f"CONF: {confidence}%")
+        self.tg_exec.setText(f"EXEC: {'READY' if execution_ready else 'BLOCKED'}")
+        self.tg_exec.setStyleSheet(f"color: {'#1f8b4c' if execution_ready else '#c2672a'};")
+        self.tg_risk.setText(f"RISK: {risk_level}")
+        risk_color = "#1f8b4c" if risk_level == "LOW" else "#c2672a" if risk_level in {"HIGH", "EXTREME"} else "#dbe6f2"
+        self.tg_risk.setStyleSheet(f"color: {risk_color};")
+        self.tg_scenario.setText(f"SCENARIO: {scenario}")
+        self.tg_agree.setText(f"AGREE: {agreement}")
+        self.tg_conflict.setText(f"CONFLICT: {conflict}")
+        self.market_mode.setText(f"Market Mode: {regime}")
+        strongest = gt.get("strongest_reasons", [])
+        self.strongest_reason.setText(f"Strongest: {(strongest[0] if strongest else '--')}")
+        self.blocked_reason.setText(f"Blocked: {(blocked_reasons[0] if blocked_reasons else '--')}")
+        self.trap_risk.setText(f"Trap Risk: {gt.get('trap_risk', risk_level)}")
+        self.pullback_state.setText(f"Pullback State: {gt.get('pullback_state', '--')}")
+        self.entry_window.setText(f"Entry Window: {'OPEN' if entry_open else 'CLOSED'}")
+        self.entry_window.setStyleSheet(f"color: {'#1f8b4c' if entry_open else '#7c8796'};")
+        self.agreement_score_label.setText(f"Agreement: {agreement}")
+        self.conflict_score_label.setText(f"Conflict: {conflict}")
+        self.active_tfs_label.setText(f"Active TFs: {', '.join(gt.get('active_timeframes', [])) or '--'}")
+        self.disabled_tfs_label.setText(f"Disabled TFs: {', '.join(gt.get('disabled_timeframes', [])) or '--'}")
+        tape_items = [*gt.get("strongest_reasons", [])[:3], *[f"BLOCK:{b}" for b in blocked_reasons[:2]], *explanations[:2]]
+        self.reason_tape.setText(" | ".join(tape_items[:5]) or "--")
         self.trade_decision.setText(f"Decision: {decision}")
         self.last_signal.setText(f"Last signal: GT {gt_score} ({dominant_side})")
         self.last_reason.setText(f"Last reason: {reasons}")
