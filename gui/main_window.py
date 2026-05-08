@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
+import time
 
 from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -81,6 +82,8 @@ class MainWindow(QMainWindow):
         self.worker: Worker | None = None
         self.log_lines: deque[str] = deque(maxlen=20)
         self.last_log_message = ""
+        self.last_regime_logged = ""
+        self.last_regime_log_ts = 0.0
         self.last_scores: dict[str, int] = {}
         self.start_time = datetime.utcnow()
         self.log_dedup = LogDeduplicator()
@@ -418,6 +421,8 @@ class MainWindow(QMainWindow):
                 latency_count += 1
 
         gt = result.get("game_theory", {})
+        market_regime_data = result.get("market_regime", {})
+        decision_tree = result.get("decision_tree", {})
         gt_score = int(gt.get("global_score", max(1, min(100, int(sum(tg_scores) / len(tg_scores))) if tg_scores else 50)))
         decision = gt.get("decision", "WAIT")
         regime = gt.get("market_regime", "UNKNOWN")
@@ -452,12 +457,12 @@ class MainWindow(QMainWindow):
         self.tg_scenario.setText(f"SCENARIO: {scenario}")
         self.tg_agree.setText(f"AGREE: {agreement}")
         self.tg_conflict.setText(f"CONFLICT: {conflict}")
-        self.market_mode.setText(f"Market Mode: {regime}")
+        self.market_mode.setText(f"Market Regime: {market_regime_data.get('regime', regime)} ({market_regime_data.get('confidence', confidence)}%)")
         strongest = gt.get("strongest_reasons", [])
-        self.strongest_reason.setText(f"Strongest: {(strongest[0] if strongest else '--')}")
-        self.blocked_reason.setText(f"Blocked: {(blocked_reasons[0] if blocked_reasons else '--')}")
-        self.trap_risk.setText(f"Trap Risk: {gt.get('trap_risk', risk_level)}")
-        self.pullback_state.setText(f"Pullback State: {gt.get('pullback_state', '--')}")
+        self.strongest_reason.setText(f"Allowed Direction: {decision_tree.get('allowed_direction', dominant_side)}")
+        self.blocked_reason.setText(f"Next Required Event: {decision_tree.get('next_required_event', '--')}")
+        self.trap_risk.setText(f"Action: {decision_tree.get('action', decision)}")
+        self.pullback_state.setText(f"Reason: {decision_tree.get('reason', '--')}")
         self.entry_window.setText(f"Entry Window: {'OPEN' if entry_open else 'CLOSED'}")
         self.entry_window.setStyleSheet(f"color: {'#1f8b4c' if entry_open else '#7c8796'};")
         self.agreement_score_label.setText(f"Agreement: {agreement}")
@@ -483,6 +488,13 @@ class MainWindow(QMainWindow):
         self.paper_tape.setText(
             f"PAPER TRADE TAPE: side={t_side} ts={result.get('timestamp', '--')} tp={tactical.get('target_ticks', 0)} conf={tactical.get('confidence', '--')}"
         )
+
+        regime_log = market_regime_data.get("regime", regime)
+        now_ts = time.time()
+        if regime_log != self.last_regime_logged and now_ts - self.last_regime_log_ts >= 1.0:
+            self.log_message(f"INFO MARKET REGIME -> {regime_log} | ALLOWED {decision_tree.get('allowed_direction', 'NONE')} | NEXT {decision_tree.get('next_required_event', '--')} | ACTION {decision_tree.get('action', 'WAIT')}")
+            self.last_regime_logged = regime_log
+            self.last_regime_log_ts = now_ts
 
         avg_refresh_latency = (latency_acc / latency_count) if latency_count else 0.0
         self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + avg_refresh_latency) / self.total_refreshes
