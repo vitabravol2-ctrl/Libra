@@ -123,3 +123,10 @@ Paper/simulation-only tactical layer added after Game Theory decision.
 - В v0.5.0 входы в сделки отключены (no-entry mode).
 - Система определяет режим, разрешённое направление и ожидаемое следующее событие.
 - Следующая версия v0.5.1: Liquidity Event Layer.
+
+## v0.6.0 TREE ARCHITECTURE RESET
+- Старые системы удалены/изолированы из активного UI-контура.
+- GUI полностью упрощён до дерева принятия решений.
+- Decision pipeline теперь deterministic: `regime -> liquidity -> confirmation -> entry -> exit`.
+- Архитектура основана только на 5 узлах: MARKET REGIME, LIQUIDITY EVENT, CONFIRMATION, ENTRY, EXIT.
+- Цель системы: microstructure tick scalping (+1/+2/+3 ticks) без AI/предикторов.
