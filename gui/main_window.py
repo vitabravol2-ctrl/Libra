@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from PySide6.QtCore import QThread, QTimer, Signal
-from PySide6.QtWidgets import QGridLayout, QLabel, QMainWindow, QProgressBar, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QLabel, QMainWindow, QProgressBar, QTextEdit, QVBoxLayout, QWidget, QGroupBox
 
 from core.data_collector import DataCollector
 from core.probability_engine import ProbabilityEngine
@@ -30,13 +30,17 @@ class Worker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.2.0")
+        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.3.0")
         self.resize(980, 700)
         self.collector = DataCollector(); self.engine = ProbabilityEngine(); self.worker: Worker | None = None
         self.bars: dict[str, QProgressBar] = {}
         self.labels: dict[str, QLabel] = {}
         self.health_labels: dict[str, QLabel] = {}
+        self.factor_labels: dict[str, QLabel] = {}
         self.last_log_message = ""
+        self.last_scores: dict[str, int] = {}
+        self.last_context: dict[str, str] = {}
+        self.last_strongest: dict[str, str] = {}
         self.start_time = datetime.utcnow()
         self.total_refreshes = 0
         self.failed_refreshes = 0
@@ -51,6 +55,16 @@ class MainWindow(QMainWindow):
             bar = QProgressBar(); bar.setRange(1, 100); bar.setValue(50); bar.setFormat("%v"); self.bars[tf] = bar; grid.addWidget(bar, row, 1)
             label = QLabel("UP: -- | DOWN: -- | DIR: -- | CONF: -- | TS: --"); self.labels[tf] = label; grid.addWidget(label, row, 2)
             health = QLabel("HEALTH: -- | LAT: -- | STALE: --"); self.health_labels[tf] = health; grid.addWidget(health, row, 3)
+
+
+        factor_box = QGroupBox("DIRECTION FACTORS")
+        factor_layout = QGridLayout(factor_box)
+        for row, tf in enumerate(["DAY", "HOUR", "10 MIN", "1 MIN"]):
+            factor_layout.addWidget(QLabel(tf), row, 0)
+            factor_label = QLabel("UP: -- | DOWN: -- | SCORE: -- | CTX: -- | PRESSURE: --")
+            self.factor_labels[tf] = factor_label
+            factor_layout.addWidget(factor_label, row, 1)
+        layout.addWidget(factor_box)
 
         self.telemetry = QLabel("SYSTEM TELEMETRY | API: -- | FREQ: -- | REFRESH: 0 | FAIL: 0 | AVG LAT: -- | UPTIME: -- | SYMBOL: -- | SOURCE: --")
         layout.addWidget(self.telemetry)
@@ -79,6 +93,27 @@ class MainWindow(QMainWindow):
             color = {"HEALTHY": "#1f8b4c", "DELAYED": "#e0a100", "STALE": "#d17b00", "ERROR": "#a32828"}.get(hs, "#808080")
             self.health_labels[tf].setStyleSheet(f"color: {color};")
             self.health_labels[tf].setText(f"HEALTH: {hs} | LAT: {data['latency_ms']}ms | STALE: {data['stale_seconds']}s")
+            factors = data.get("factors", [])
+            up_factors = [f for f in factors if f["direction"] == "UP"]
+            down_factors = [f for f in factors if f["direction"] == "DOWN"]
+            strongest_up = max(up_factors, key=lambda x: x["contribution"], default={"name": "--", "contribution": 0})
+            strongest_down = min(down_factors, key=lambda x: x["contribution"], default={"name": "--", "contribution": 0})
+            micro = data.get("microstructure_context", {})
+            self.factor_labels[tf].setText(f"UP: {strongest_up['name']} | DOWN: {strongest_down['name']} | SCORE: {data.get('factors_score','--')} | CTX: {micro.get('context_state','--')} | PRESSURE: {micro.get('pressure_side','--')}")
+            sig = abs(self.last_scores.get(tf, score) - score) >= 7
+            if sig:
+                self.log_message(f"INFO score changed significantly {tf}: {self.last_scores.get(tf, score)} -> {score}")
+            self.last_scores[tf] = score
+            ctx = micro.get("context_state", "--")
+            if self.last_context.get(tf) != ctx:
+                self.log_message(f"INFO context change {tf}: {self.last_context.get(tf, '--')} -> {ctx}")
+            self.last_context[tf] = ctx
+            strongest = strongest_up['name'] if abs(strongest_up.get('contribution',0)) >= abs(strongest_down.get('contribution',0)) else strongest_down['name']
+            if self.last_strongest.get(tf) != strongest:
+                self.log_message(f"INFO strongest factor change {tf}: {self.last_strongest.get(tf, '--')} -> {strongest}")
+            self.last_strongest[tf] = strongest
+            for w in micro.get('warnings', []):
+                self.log_message(f"WARN {tf} {w}")
 
         self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + (latency_acc / 4)) / self.total_refreshes
         uptime = datetime.utcnow() - self.start_time

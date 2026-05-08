@@ -22,3 +22,11 @@ python main.py
 ```bash
 pytest -q
 ```
+
+## v0.3.0 Direction Factors + Microstructure Context
+- Added Direction Factors v2 (15 candle-based factors) with transparent contributions.
+- Added Microstructure Context Engine (candle-only, no order book/WebSocket yet).
+- Final score now combines: base + bias + volatility + factors + microstructure.
+- Still NOT a trading bot: no live trading, no keys, no margin/futures execution.
+- Order book and WebSocket context layer planned for future versions.
+

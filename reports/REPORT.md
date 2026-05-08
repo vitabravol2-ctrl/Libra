@@ -51,3 +51,9 @@ GUI показывает:
 - Обновление выполняется в `QThread`.
 - Повторный refresh не стартует пока идет предыдущий.
 - Ошибки API переходят в `ERROR` state и лог, без падения GUI/event loop.
+
+## v0.3.0 Update
+Direction Factors v2 and Microstructure Context Engine are integrated into ProbabilityEngine.
+Final score formula is explicit and explainable (base/bias/volatility/factors/microstructure components).
+Current factors are candle-derived only; order book + websocket microstructure is scheduled for later releases.
+
