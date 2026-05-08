@@ -43,9 +43,9 @@ def test_probability_engine_down_bias():
 
 def test_health_transitions():
     collector = DataCollector()
-    assert collector._health_status("1m", 100, 30) == HealthStatus.HEALTHY
-    assert collector._health_status("1m", 2000, 30) == HealthStatus.DELAYED
-    assert collector._health_status("1m", 100, 1000) == HealthStatus.STALE
+    assert collector._health_status(100, 30, 120, 1500) == HealthStatus.HEALTHY
+    assert collector._health_status(2000, 30, 120, 1500) == HealthStatus.DELAYED
+    assert collector._health_status(100, 1000, 120, 1500) == HealthStatus.STALE
 
 
 def test_volatility_calculation():

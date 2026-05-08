@@ -10,6 +10,7 @@ class HealthStatus(str, Enum):
     DELAYED = "DELAYED"
     STALE = "STALE"
     ERROR = "ERROR"
+    DISABLED = "DISABLED"
 
 
 @dataclass
@@ -47,3 +48,15 @@ class MarketDataPack:
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class MultiTimeframeState:
+    timeframe_results: dict[str, dict[str, Any]]
+    active_timeframes: list[str]
+    disabled_timeframes: list[str]
+    agreement_score: int
+    conflict_score: int
+    dominant_direction: str
+    clean_for_game_theory: bool
+    warnings: list[str] = field(default_factory=list)
