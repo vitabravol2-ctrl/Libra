@@ -1,47 +1,53 @@
-# REPORT v0.1.0
+# REPORT v0.2.0
 
-## Что реализовано
-- Базовый сбор данных BTCUSDT из Binance public API.
-- Нормализация candle-параметров по 4 таймфреймам.
-- Probability Engine с детерминированной формулой score (1..100).
-- GUI на PySide6 с обновлением через QTimer и неблокирующей загрузкой в QThread.
-- Логирование ошибок API без падения приложения.
-- Базовые unit-тесты для сценариев UP и DOWN.
+## DataPack Architecture
+Введен нормализованный `MarketDataPack` как единый объект состояния рынка на timeframe.
+Содержит:
+- метаданные источника и времени,
+- candle stats,
+- volatility layer,
+- direction bias layer,
+- health/errors/warnings/latency/stale.
 
-## Собираемые данные
-Для каждой свечи (последняя + история):
-- current price
-- OHLC
-- volume / quote volume
-- price change
-- candle direction
-- volatility
-- high/low range
-- close position in range
-- momentum
-- simple delta
-- last N candles bias
+## Health System
+Статусы:
+- HEALTHY
+- DELAYED
+- STALE
+- ERROR
 
-## Формулы v0.1.0
-Базовая точка: `score = 50`.
+Логика:
+- STALE при превышении stale-threshold по интервалу.
+- DELAYED при высокой транспортной задержке.
+- ERROR при исключении API.
+- HEALTHY во всех остальных случаях.
 
-Факторы:
-1. `candle_body_direction`: close > open (+5), close < open (-5)
-2. `close_position_in_range`: near high (+5), near low (-5)
-3. `volume_strength`: условный индикатор активности (+5/-5/0)
-4. `momentum`: positive (+5), negative (-5)
-5. `volatility_context`: low volatility (-2), high volatility (+2)
-6. `last_n_candles_bias`: bullish bias (+5), bearish bias (-5)
+## Telemetry
+GUI показывает:
+- API status
+- update frequency
+- total refreshes
+- failed refreshes
+- average latency
+- uptime
+- symbol/source
 
-Ограничения:
-- `score` clamp в диапазон `1..100`
-- `UP = score`
-- `DOWN = 100 - UP`
-- `direction = UP/DOWN/NEUTRAL` относительно порога 50
-- `confidence = abs(score - 50) * 2`
+## Volatility Layer
+`core/volatility_engine.py` рассчитывает:
+- candle expansion
+- candle compression
+- avg range
+- volatility score
 
-## Что дальше
-- Добавить более устойчивые статистические признаки.
-- Ввести калибровку весов и бэктест.
-- Добавить сохранение истории сигналов.
-- Добавить графики и drill-down по факторам в GUI.
+## Bias Layer
+`core/bias_engine.py` рассчитывает:
+- bullish pressure
+- bearish pressure
+- candle dominance
+- directional persistence
+- bias score (1..100)
+
+## Thread stability notes
+- Обновление выполняется в `QThread`.
+- Повторный refresh не стартует пока идет предыдущий.
+- Ошибки API переходят в `ERROR` state и лог, без падения GUI/event loop.

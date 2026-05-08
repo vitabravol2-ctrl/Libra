@@ -1,16 +1,17 @@
-# BTCUSDT Game Theory / Microtrend Probability Engine v0.1.0
+# BTCUSDT Game Theory / Microtrend Probability Engine v0.2.0
 
-Desktop-приложение на PySide6 для оценки вероятности направления BTCUSDT на таймфреймах:
-- 1D
-- 1H
-- 10M
-- 1M
+Desktop-приложение на PySide6 для оценки вероятности направления BTCUSDT на таймфреймах: 1D / 1H / 10M / 1M.
 
-## Что делает
-- Сбор публичных данных Binance (без ключей).
-- Нормализация свечных признаков.
-- Расчёт score (1..100), UP %, DOWN %, direction и confidence.
-- GUI с 4 шкалами и логом обновлений.
+## Pipeline v0.2.0
+Collector → DataPack v2 → Probability Engine → GUI.
+
+## Что добавлено
+- Единый `MarketDataPack` для каждого timeframe.
+- Health system: `HEALTHY`, `DELAYED`, `STALE`, `ERROR`.
+- GUI health panel с latency/stale метриками.
+- SYSTEM TELEMETRY блок.
+- Volatility engine и bias engine для нормализованных признаков.
+- Дедупликация логов (без спама одинаковыми сообщениями).
 
 ## Запуск
 ```bash
