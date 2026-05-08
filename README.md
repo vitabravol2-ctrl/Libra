@@ -151,3 +151,10 @@ Paper/simulation-only tactical layer added after Game Theory decision.
 - adaptive TP model (fee+spread+buffer aware)
 - structure-aware SL and timeout/emergency exits
 - GUI upgraded toward professional microstructure terminal
+
+## v0.6.4 MICROSTRUCTURE INTELLIGENCE
+- добавлен deterministic microstructure layer
+- система теперь различает: real momentum vs fake move
+- spoof/absorption/exhaustion detection
+- entry quality filter added
+- orderflow intelligence added

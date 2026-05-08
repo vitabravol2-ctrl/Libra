@@ -36,6 +36,8 @@ class EntryGate:
         fee_ticks: int = 8,
         buffer_ticks: int = 4,
         timeout_seconds: int = 30,
+        microstructure: dict[str, Any] | None = None,
+        micro_threshold: int = 55,
     ) -> EntryDecision:
         if regime == "CHAOS":
             return self._blocked(side, price, timeout_seconds, "blocked_regime_chaos")
@@ -49,6 +51,20 @@ class EntryGate:
             return self._blocked(side, price, timeout_seconds, "blocked_wide_spread")
         if freshness_ms > max_freshness_ms:
             return self._blocked(side, price, timeout_seconds, "blocked_stale_data")
+
+        micro = microstructure or {"final_quality": 100, "spoof_score": 0, "exhaustion_score": 0, "decay_score": 0, "continuation_score": 50}
+        if int(micro.get("final_quality", 0)) < micro_threshold:
+            return self._blocked(side, price, timeout_seconds, "blocked_micro_quality")
+        if int(micro.get("spoof_score", 0)) >= 70:
+            return self._blocked(side, price, timeout_seconds, "blocked_micro_spoof")
+        if int(micro.get("exhaustion_score", 0)) >= 70:
+            return self._blocked(side, price, timeout_seconds, "blocked_micro_exhaustion")
+        if int(micro.get("decay_score", 0)) >= 65:
+            return self._blocked(side, price, timeout_seconds, "blocked_micro_decay")
+        if bool(micro.get("absorption_against", False)):
+            return self._blocked(side, price, timeout_seconds, "blocked_micro_absorption")
+        if int(micro.get("continuation_score", 50)) <= 25:
+            return self._blocked(side, price, timeout_seconds, "blocked_micro_continuation")
 
         tp_ticks = self._tp_ticks(spread=spread, score=confirmation_score, mode=tp_mode, adaptive_tp=adaptive_tp, fee_ticks=fee_ticks, buffer_ticks=buffer_ticks)
         sl_ticks = max(12, int(round(tp_ticks * 0.55)))
