@@ -95,6 +95,19 @@ pytest -q
 - GUI main gauge now displays **Game Theory Engine** state with regime/confidence/execution-readiness and explainable reasons.
 - Still **analysis-only**: no Binance keys, no futures/margin/autotrading execution.
 
+ codex/create-tactical-entry-engine
+## Tactical Entry Engine (v0.5.0)
+
+Paper/simulation-only tactical layer added after Game Theory decision.
+
+- Macro layer: WEEK/DAY/HOUR alignment -> LONG_BIAS / SHORT_BIAS / NEUTRAL_BIAS.
+- Pullback layer: 10 MIN validates local pullback vs macro trend.
+- Micro trigger layer: 1 MIN context (reclaim, momentum flip, weak buyers/sellers, breakout/breakdown).
+- Entry window opens only when: GT != WAIT, execution_ready, macro aligned, pullback valid, micro trigger present, low trap risk.
+- Tactical score (1..100) combines GT score, pullback/micro quality, conflict, trap risk.
+- Tick model (micro scalp): HIGH=TP3/SL2, MEDIUM=TP2/SL2, LOW=no entry.
+
+ Safety: paper intent only. No exchange execution, no API keys, no auto-trading.
 ## v0.4.2 Live Game Theory Cockpit + Market State Panel
 - Reworked central Game Theory widget into a **live cockpit panel** with TG score, decision, regime, dominant side, confidence, execution readiness, risk, scenario, agreement and conflict indicators.
 - Added dedicated **Market State** block: market mode, strongest reason, blocked reason, trap risk, pullback state and Entry Window status.

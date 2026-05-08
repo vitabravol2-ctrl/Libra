@@ -98,6 +98,17 @@ Current factors are candle-derived only; order book + websocket microstructure i
 - Added explanation traces for regime/decision transitions and block reasons for anti-chaos behavior.
 - Integration point in GUI now consumes `game_theory` payload for central decision telemetry.
 
+ codex/create-tactical-entry-engine
+## Tactical Entry Engine v0.5.0
+
+Integrated TacticalEntryEngine for paper intent generation:
+- Decision -> Tactical Entry -> Paper Intent.
+- Macro/Pullback/Micro architecture implemented.
+- Entry window gating and anti-chaos/trap blocking added.
+- Tactical score and micro TP/SL tick assignment included.
+- Cockpit now shows tactical entry status and paper trade tape placeholder.
+
+Paper-only status remains enforced (no real order execution).
 ## v0.4.2 Live Game Theory Cockpit
 - Центральный блок Game Theory обновлен до live-cockpit формата:
   - TG score + decision
