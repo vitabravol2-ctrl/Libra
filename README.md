@@ -1,4 +1,4 @@
-# BTCUSDT Game Theory / Microtrend Probability Engine v0.3.1.1
+# BTCUSDT Game Theory / Microtrend Probability Engine v0.4.2
 
 Desktop-приложение на PySide6 для оценки вероятности направления BTCUSDT на таймфреймах: 1D / 1H / 10M / 1M.
 
@@ -94,3 +94,12 @@ pytest -q
 - Added `PaperTradeIntent` placeholder for future paper trading integration (no real orders).
 - GUI main gauge now displays **Game Theory Engine** state with regime/confidence/execution-readiness and explainable reasons.
 - Still **analysis-only**: no Binance keys, no futures/margin/autotrading execution.
+
+## v0.4.2 Live Game Theory Cockpit + Market State Panel
+- Reworked central Game Theory widget into a **live cockpit panel** with TG score, decision, regime, dominant side, confidence, execution readiness, risk, scenario, agreement and conflict indicators.
+- Added dedicated **Market State** block: market mode, strongest reason, blocked reason, trap risk, pullback state and Entry Window status.
+- Added **Timeframe Agreement mini-radar** with agreement/conflict score plus active/disabled timeframes.
+- Extended compact timeframe cards with score, direction, and short quality/context labels.
+- Added **GT Reason Tape** for concise strongest/blocked reasons and short explanations (last 3-5 items).
+- Entry Window is a placeholder signal (`OPEN` when execution_ready=true, decision is LONG/SHORT, confidence>=60).
+- Runtime remains strictly **analysis-only / paper-prep**: no real trading execution, no Binance API keys.
