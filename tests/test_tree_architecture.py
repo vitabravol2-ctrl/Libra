@@ -27,12 +27,12 @@ def test_chaos_detection():
 
 
 def test_sweep_low_reclaim():
-    r = LiquidityEventDetector().detect({"sweep_low": True, "reclaim": True})
+    r = LiquidityEventDetector().analyze({"sweep_low": True, "reclaim": True}, MarketRegimeDetector().analyze({"directional_pressure": 0.8, "higher_micro_highs": True}))
     assert r.event == LiquidityEvent.SWEEP_LOW_RECLAIM
 
 
 def test_sweep_high_reject():
-    r = LiquidityEventDetector().detect({"sweep_high": True, "reject": True})
+    r = LiquidityEventDetector().analyze({"sweep_high": True, "reject": True}, MarketRegimeDetector().analyze({"directional_pressure": -0.8, "lower_micro_lows": True}))
     assert r.event == LiquidityEvent.SWEEP_HIGH_REJECT
 
 
@@ -43,7 +43,7 @@ def test_confirmation_scoring():
 
 def test_entry_blocked_if_score_lt_70():
     d = EntryGate().evaluate("TREND_UP", "SWEEP_LOW_RECLAIM", 65, True, True)
-    assert not d.allowed
+    assert d.allowed is False
 
 
 def test_exit_by_tp():
@@ -68,4 +68,5 @@ def test_pipeline_runs_deterministic_path():
         "orderbook_imbalance": 0.9, "aggressive_trades": 0.9, "velocity": 0.9,
         "spread": 1.0, "freshness_ms": 500,
     })
-    assert p.entry["allowed"] is True
+    assert p.entry["allowed"] is False
+    assert p.entry["reason"] == "not_implemented"

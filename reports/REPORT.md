@@ -151,3 +151,9 @@ Paper-only status remains enforced (no real order execution).
   - `core/decision_pipeline.py`
 - Entry разрешается только при подтверждении score>70, fresh data и normal spread.
 - Exit ограничен TP(+1/+2/+3), structure break SL, timeout, emergency.
+
+## v0.6.1 LIQUIDITY EVENT LAYER
+- второй слой дерева добавлен
+- система теперь после Market Regime ищет liquidity setup
+- entry всё ещё отключён
+- цель следующей версии v0.6.2: Confirmation Layer

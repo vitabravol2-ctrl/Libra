@@ -10,6 +10,7 @@ class MarketRegime(str, Enum):
     TREND_DOWN = "TREND_DOWN"
     RANGE = "RANGE"
     CHAOS = "CHAOS"
+    UNKNOWN = "UNKNOWN"
 
 
 @dataclass
@@ -37,4 +38,4 @@ class MarketRegimeDetector:
             return MarketRegimeResult(MarketRegime.TREND_DOWN, 78, "bearish_trend")
         if range_width <= 25 and trend_strength <= 0.35:
             return MarketRegimeResult(MarketRegime.RANGE, 72, "range_conditions")
-        return MarketRegimeResult(MarketRegime.CHAOS, 55, "unclear_defaults_to_no_trade")
+        return MarketRegimeResult(MarketRegime.UNKNOWN, 45, "unknown_regime")
