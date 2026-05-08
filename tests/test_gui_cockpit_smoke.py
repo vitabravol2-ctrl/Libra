@@ -7,7 +7,7 @@ from gui.main_window import MainWindow, TradingSettings, compact_timeframe_text
 
 def test_gui_imports_and_window_builds(qapp):
     window = MainWindow()
-    assert window.windowTitle().endswith("v0.4.0")
+    assert window.windowTitle().endswith("v0.4.1")
 
 
 def test_settings_model_works():
@@ -29,10 +29,19 @@ def test_tg_placeholder_score_renders(qapp):
             "1 MIN": {"score": 50, "health_status": "HEALTHY", "latency_ms": 25},
             "1 SEC": {"health_status": "WAITING_FOR_WS"},
         },
+        "game_theory": {"global_score": 46, "decision": "WAIT", "market_regime": "TREND_DOWN", "confidence": 92, "execution_ready": True},
     }
     window.apply_result(result)
-    assert window.tg_gauge.value() > 1
-    assert "PREPARED" in window.tg_state_label.text()
+    assert window.tg_score_big.text() == "46"
+    assert window.tg_decision_big.text() == "WAIT"
+    assert "CONF 92%" in window.tg_meta_line.text()
+
+
+def test_cockpit_widgets_and_dark_theme_stylesheet(qapp):
+    window = MainWindow()
+    assert "background-color: #0b0f14" in window.styleSheet()
+    assert window.findChild(type(window.tg_score_big), "GaugeScore") is not None
+    assert window.log.maximumHeight() <= 16777215
 
 
 def test_timeframe_compact_formatter_works():

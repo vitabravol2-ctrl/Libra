@@ -8,6 +8,7 @@ from datetime import datetime
 
 from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import (
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -15,7 +16,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QPushButton,
-    QProgressBar,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -74,8 +74,8 @@ def compact_timeframe_text(tf: str, data: dict) -> str:
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.4.0")
-        self.resize(1100, 760)
+        self.setWindowTitle("BTCUSDT Game Theory / Microtrend Probability Engine v0.4.1")
+        self.resize(1280, 820)
         self.collector = DataCollector()
         self.engine = ProbabilityEngine()
         self.worker: Worker | None = None
@@ -95,35 +95,63 @@ class MainWindow(QMainWindow):
 
         central = QWidget()
         root = QVBoxLayout(central)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(10)
 
-        top = self._build_top_panel()
-        root.addWidget(top)
+        root.addWidget(self._build_top_panel())
 
-        middle = QHBoxLayout()
-        middle.addWidget(self._build_tg_gauge(), 2)
-        middle.addWidget(self._build_timeframes_panel(), 1)
-        root.addLayout(middle)
-
-        bottom = QHBoxLayout()
-        bottom.addWidget(self._build_settings_panel(), 2)
-        bottom.addWidget(self._build_trade_control_panel(), 1)
-        root.addLayout(bottom)
+        cockpit = QGridLayout()
+        cockpit.setHorizontalSpacing(10)
+        cockpit.setVerticalSpacing(10)
+        cockpit.addWidget(self._build_tg_gauge(), 0, 0, 2, 2)
+        cockpit.addWidget(self._build_timeframes_panel(), 0, 2)
+        cockpit.addWidget(self._build_trade_control_panel(), 1, 2)
+        cockpit.addWidget(self._build_settings_panel(), 0, 3, 2, 1)
+        cockpit.setColumnStretch(0, 2)
+        cockpit.setColumnStretch(1, 1)
+        cockpit.setColumnStretch(2, 1)
+        cockpit.setColumnStretch(3, 1)
+        root.addLayout(cockpit)
 
         log_box = QGroupBox("COMPACT LOGS")
+        log_box.setObjectName("Card")
+        log_box.setMaximumHeight(140)
         log_layout = QVBoxLayout(log_box)
         self.log = QTextEdit()
+        self.log.setObjectName("LogPane")
         self.log.setReadOnly(True)
         log_layout.addWidget(self.log)
         root.addWidget(log_box)
 
         self.setCentralWidget(central)
+        self.setStyleSheet(self._cockpit_stylesheet())
         self._refresh_settings_fields()
 
         self.timer.start()
         self.fetch_update()
 
+    def _cockpit_stylesheet(self) -> str:
+        return """
+        QMainWindow, QWidget { background-color: #0b0f14; color: #dbe6f2; font-size: 12px; }
+        QGroupBox#Card { border: 1px solid #1f2d3c; border-radius: 8px; margin-top: 14px; background-color: #121922; }
+        QGroupBox#Card::title { subcontrol-origin: margin; left: 8px; padding: 0 6px; color: #8da5bf; font-size: 12px; }
+        QLabel[role='Heading'] { font-size: 14px; font-weight: 600; color: #b6c9dc; }
+        QLabel#GaugeScore { font-size: 72px; font-weight: 700; qproperty-alignment: 'AlignCenter'; }
+        QLabel#GaugeDecision { font-size: 28px; font-weight: 700; qproperty-alignment: 'AlignCenter'; }
+        QLabel#GaugeMeta { font-size: 13px; color: #9fb2c4; qproperty-alignment: 'AlignCenter'; }
+        QFrame#TimeframeCard { background: #172330; border: 1px solid #24384b; border-radius: 6px; }
+        QLabel[role='TFName'] { font-weight: 700; font-size: 11px; color: #9fb2c4; }
+        QLabel[role='TFValue'] { font-size: 16px; font-weight: 700; }
+        QLabel[role='TFDir'] { font-size: 11px; color: #b6c9dc; }
+        QLineEdit { background: #0f1720; border: 1px solid #26384d; border-radius: 4px; padding: 4px 6px; min-height: 22px; }
+        QPushButton { background: #1f2f40; border: 1px solid #2a4258; border-radius: 4px; padding: 6px 8px; }
+        QPushButton:hover { background: #28445d; }
+        QTextEdit#LogPane { background: #0f1720; border: 1px solid #223447; }
+        """
+
     def _build_top_panel(self) -> QGroupBox:
-        box = QGroupBox("TOP PANEL")
+        box = QGroupBox("SYSTEM STATUS")
+        box.setObjectName("Card")
         grid = QGridLayout(box)
         self.price_label = QLabel("Current Price: --")
         self.api_status = QLabel("API status: --")
@@ -142,83 +170,111 @@ class MainWindow(QMainWindow):
         return box
 
     def _build_tg_gauge(self) -> QGroupBox:
-        box = QGroupBox("CENTER PANEL — GAME THEORY ENGINE")
+        box = QGroupBox("GAME THEORY SCORE")
+        box.setObjectName("Card")
         layout = QVBoxLayout(box)
-        self.tg_state_label = QLabel("GAME THEORY ENGINE: PREPARED / NOT ACTIVE")
-        self.tg_gauge = QProgressBar()
-        self.tg_gauge.setRange(1, 100)
-        self.tg_gauge.setValue(50)
-        self.tg_gauge.setFormat("TG SCORE %v")
+        self.tg_state_label = QLabel("ENGINE READY")
+        self.tg_state_label.setProperty("role", "Heading")
+
+        self.tg_score_big = QLabel("50")
+        self.tg_score_big.setObjectName("GaugeScore")
+        self.tg_decision_big = QLabel("WAIT")
+        self.tg_decision_big.setObjectName("GaugeDecision")
+        self.tg_meta_line = QLabel("TREND_NEUTRAL · CONF 0% · EXEC NO")
+        self.tg_meta_line.setObjectName("GaugeMeta")
+
         self.tg_decision_label = QLabel("GT Decision: WAIT")
+        self.tg_decision_label.setProperty("role", "Heading")
+
         layout.addWidget(self.tg_state_label)
-        layout.addWidget(self.tg_gauge)
+        layout.addStretch(1)
+        layout.addWidget(self.tg_score_big)
+        layout.addWidget(self.tg_decision_big)
+        layout.addWidget(self.tg_meta_line)
+        layout.addStretch(1)
         layout.addWidget(self.tg_decision_label)
         return box
 
     def _build_timeframes_panel(self) -> QGroupBox:
-        box = QGroupBox("COMPACT TIMEFRAMES")
-        layout = QVBoxLayout(box)
+        box = QGroupBox("TIMEFRAMES")
+        box.setObjectName("Card")
+        grid = QGridLayout(box)
         self.tf_compact_labels = {}
-        for tf in TIMEFRAME_ORDER:
-            lbl = QLabel(f"{tf:<6} ● GREY NO_DATA")
-            self.tf_compact_labels[tf] = lbl
-            layout.addWidget(lbl)
+        for idx, tf in enumerate(TIMEFRAME_ORDER):
+            card = QFrame()
+            card.setObjectName("TimeframeCard")
+            card_layout = QVBoxLayout(card)
+            name = QLabel(tf)
+            name.setProperty("role", "TFName")
+            val = QLabel("--")
+            val.setProperty("role", "TFValue")
+            direct = QLabel("NO_DATA")
+            direct.setProperty("role", "TFDir")
+            card_layout.addWidget(name)
+            card_layout.addWidget(val)
+            card_layout.addWidget(direct)
+            self.tf_compact_labels[tf] = {"value": val, "dir": direct}
+            grid.addWidget(card, idx // 2, idx % 2)
         return box
 
     def _build_settings_panel(self) -> QGroupBox:
-        box = QGroupBox("SCALPING / GRID SETTINGS")
+        box = QGroupBox("TRADING SETTINGS")
+        box.setObjectName("Card")
         grid = QGridLayout(box)
         self.settings_inputs = {}
         fields = [
-            ("mode", "Mode"), ("long_threshold", "Long threshold"), ("short_threshold", "Short threshold"),
+            ("long_threshold", "Long threshold"), ("short_threshold", "Short threshold"),
             ("tp_ticks", "TP ticks"), ("sl_ticks", "SL ticks"), ("grid_step", "Grid step"),
-            ("max_position", "Max position"), ("leverage_placeholder", "Leverage placeholder"), ("risk_per_cycle", "Risk per cycle"),
+            ("max_position", "Max position"), ("risk_per_cycle", "Risk"),
         ]
         for row, (key, text) in enumerate(fields):
             grid.addWidget(QLabel(text), row, 0)
             inp = QLineEdit()
             self.settings_inputs[key] = inp
             grid.addWidget(inp, row, 1)
-        apply_btn = QPushButton("Apply Settings")
+        apply_btn = QPushButton("Apply")
         reset_btn = QPushButton("Reset")
-        save_btn = QPushButton("Save Profile")
+        save_btn = QPushButton("Save")
         apply_btn.clicked.connect(self.apply_settings)
         reset_btn.clicked.connect(self.reset_settings)
         save_btn.clicked.connect(self.save_profile)
         grid.addWidget(apply_btn, len(fields), 0)
         grid.addWidget(reset_btn, len(fields), 1)
-        grid.addWidget(save_btn, len(fields) + 1, 0)
+        grid.addWidget(save_btn, len(fields) + 1, 0, 1, 2)
         return box
 
     def _build_trade_control_panel(self) -> QGroupBox:
         box = QGroupBox("TRADE CONTROL")
+        box.setObjectName("Card")
         layout = QVBoxLayout(box)
-        self.trade_decision = QLabel("GT Decision: WAIT")
-        self.position_state = QLabel("Position State: FLAT")
-        self.paper_mode = QLabel("Paper Mode: OFF")
-        self.last_signal = QLabel("Last Signal: --")
-        self.last_reason = QLabel("Last Reason: --")
+        self.trade_decision = QLabel("Decision: WAIT")
+        self.position_state = QLabel("Position: FLAT")
+        self.paper_mode = QLabel("Paper: OFF")
+        self.last_signal = QLabel("Last signal: --")
+        self.last_reason = QLabel("Last reason: --")
         for w in [self.trade_decision, self.position_state, self.paper_mode, self.last_signal, self.last_reason]:
             layout.addWidget(w)
-        arm = QPushButton("Arm Paper Mode")
+        buttons = QHBoxLayout()
+        arm = QPushButton("Arm")
         disarm = QPushButton("Disarm")
         estop = QPushButton("Emergency Stop")
         arm.clicked.connect(lambda: self._set_paper_mode(True))
         disarm.clicked.connect(lambda: self._set_paper_mode(False))
         estop.clicked.connect(self._emergency_stop)
-        layout.addWidget(arm)
-        layout.addWidget(disarm)
-        layout.addWidget(estop)
+        buttons.addWidget(arm)
+        buttons.addWidget(disarm)
+        buttons.addWidget(estop)
+        layout.addLayout(buttons)
         return box
 
     def _set_paper_mode(self, enabled: bool) -> None:
         self.paper_mode_ready = enabled
-        self.paper_mode.setText(f"Paper Mode: {'READY' if enabled else 'OFF'}")
+        self.paper_mode.setText(f"Paper: {'READY' if enabled else 'OFF'}")
 
     def _emergency_stop(self) -> None:
         self._set_paper_mode(False)
-        self.trade_decision.setText("GT Decision: WAIT")
-        self.last_reason.setText("Last Reason: Emergency stop activated")
+        self.trade_decision.setText("Decision: WAIT")
+        self.last_reason.setText("Last reason: Emergency stop activated")
 
     def _refresh_settings_fields(self) -> None:
         for key, widget in self.settings_inputs.items():
@@ -226,14 +282,14 @@ class MainWindow(QMainWindow):
 
     def apply_settings(self) -> None:
         self.settings = TradingSettings(
-            mode=self.settings_inputs["mode"].text() or "PAPER ONLY",
+            mode=self.settings.mode,
             long_threshold=int(self.settings_inputs["long_threshold"].text() or 55),
             short_threshold=int(self.settings_inputs["short_threshold"].text() or 45),
             tp_ticks=int(self.settings_inputs["tp_ticks"].text() or 80),
             sl_ticks=int(self.settings_inputs["sl_ticks"].text() or 40),
             grid_step=int(self.settings_inputs["grid_step"].text() or 15),
             max_position=float(self.settings_inputs["max_position"].text() or 0.02),
-            leverage_placeholder=int(self.settings_inputs["leverage_placeholder"].text() or 1),
+            leverage_placeholder=self.settings.leverage_placeholder,
             risk_per_cycle=float(self.settings_inputs["risk_per_cycle"].text() or 0.5),
         )
         self.log_message("INFO Settings applied locally (paper placeholder)")
@@ -265,10 +321,23 @@ class MainWindow(QMainWindow):
 
         for tf in TIMEFRAME_ORDER:
             data = result["timeframes"].get(tf, {})
-            self.tf_compact_labels[tf].setText(compact_timeframe_text(tf, data))
+            hs = data.get("health_status", "NO_DATA")
             score = data.get("score")
-            if isinstance(score, (int, float)):
-                tg_scores.append(int(score))
+            if tf == "1 SEC" and hs in {"DISABLED", "WAITING_FOR_WS"}:
+                value, direction, color = "--", "WAITING_WS", "#7c8796"
+            elif hs in {"ERROR", "STALE", "DELAYED"}:
+                value, direction, color = "--", hs, "#7c8796"
+            elif score is None:
+                value, direction, color = "--", "NO_DATA", "#7c8796"
+            else:
+                score = int(score)
+                value = f"{score}%"
+                direction = "LONG" if score >= 51 else "SHORT" if score <= 49 else "WAIT"
+                color = "#1f8b4c" if direction == "LONG" else "#a32828" if direction == "SHORT" else "#7c8796"
+                tg_scores.append(score)
+            self.tf_compact_labels[tf]["value"].setText(value)
+            self.tf_compact_labels[tf]["value"].setStyleSheet(f"color: {color};")
+            self.tf_compact_labels[tf]["dir"].setText(direction)
             lat = data.get("latency_ms")
             if lat is not None:
                 latency_acc += float(lat)
@@ -283,14 +352,17 @@ class MainWindow(QMainWindow):
         dominant_side = gt.get("dominant_side", "MIXED")
         reasons = ", ".join(gt.get("strongest_reasons", [])[:2]) or "--"
 
-        self.tg_state_label.setText(f"GAME THEORY ENGINE: {regime} | CONF {confidence}% | EXEC {'YES' if execution_ready else 'NO'}")
-        self.tg_gauge.setValue(gt_score)
-        color = "#1f8b4c" if decision == "LONG" else "#a32828" if decision == "SHORT" else "#7c7c7c"
-        self.tg_gauge.setStyleSheet(f"QProgressBar::chunk {{ background-color: {color}; }}")
+        self.tg_state_label.setText("GAME THEORY ENGINE LIVE")
+        self.tg_score_big.setText(str(gt_score))
+        self.tg_decision_big.setText(decision)
+        color = "#1f8b4c" if decision == "LONG" else "#a32828" if decision == "SHORT" else "#7c8796"
+        self.tg_score_big.setStyleSheet(f"color: {color};")
+        self.tg_decision_big.setStyleSheet(f"color: {color};")
+        self.tg_meta_line.setText(f"{regime} · CONF {confidence}% · EXEC {'YES' if execution_ready else 'NO'}")
         self.tg_decision_label.setText(f"GT Decision: {decision}")
-        self.trade_decision.setText(f"GT Decision: {decision}")
-        self.last_signal.setText(f"Last Signal: GT {gt_score} ({dominant_side})")
-        self.last_reason.setText(f"Last Reason: {reasons}")
+        self.trade_decision.setText(f"Decision: {decision}")
+        self.last_signal.setText(f"Last signal: GT {gt_score} ({dominant_side})")
+        self.last_reason.setText(f"Last reason: {reasons}")
 
         avg_refresh_latency = (latency_acc / latency_count) if latency_count else 0.0
         self.avg_latency_ms = ((self.avg_latency_ms * (self.total_refreshes - 1)) + avg_refresh_latency) / self.total_refreshes
